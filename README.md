@@ -1,73 +1,64 @@
 # LLM as a Database Interface — Re-evaluation on BIRD-SQL
 
-Đồ án môn Hệ thống CSDL tiên tiến. Dựa trên bài báo **"Can LLM Already Serve as A Database
-Interface? A BIg Bench for Large-Scale Database Grounded Text-to-SQLs" (BIRD-SQL, NeurIPS 2023)**
+Đồ án môn Hệ thống CSDL tiên tiến.
+
+Based on the paper **"Can LLM Already Serve as A Database Interface? A BIg Bench for
+Large-Scale Database Grounded Text-to-SQLs" (BIRD-SQL, NeurIPS 2023)**
 — https://arxiv.org/abs/2305.03111.
 
-Bài báo gốc đánh giá các LLM đời cũ (`code-davinci-002`, `text-davinci-003`, `gpt-3.5-turbo`) trên
-benchmark BIRD-SQL và kết luận vẫn còn khoảng cách lớn so với con người. Đồ án này chạy lại
-benchmark với một số model hiện tại (Gemini, các model mã nguồn mở qua Groq) để khảo nghiệm xem
-khoảng cách đó đã thu hẹp đến đâu.
+The original paper evaluates older-generation LLMs (`code-davinci-002`, `text-davinci-003`,
+`gpt-3.5-turbo`) on the BIRD-SQL benchmark and finds a large gap versus human performance.
+This project re-runs the benchmark against current models to see how much that gap has closed.
 
-## Cấu trúc
+## Structure
 
 ```
-src/DAMO-ConvAI/bird/          # subset của repo gốc AlibabaResearch/DAMO-ConvAI (MIT License)
-  data/                        # KHÔNG có trong repo — toàn bộ dev set tải riêng, xem bên dưới
-  data/dev_databases/          # KHÔNG có trong repo
-  llm/data/dev_gold.sql        # KHÔNG có trong repo
-  llm/src/gpt_request.py       # script inference gốc của paper (OpenAI Completion API, để tham chiếu)
-  llm/src/modern_llm_request.py# script inference MỚI: gọi Gemini (google-genai) và Groq
+src/DAMO-ConvAI/bird/          # curated subset of AlibabaResearch/DAMO-ConvAI (MIT License)
+  data/                        # NOT included in this repo — download separately, see below
+  data/dev_databases/          # NOT included in this repo
+  llm/data/dev_gold.sql        # NOT included in this repo
+  llm/src/gpt_request.py       # original inference script from the paper (legacy OpenAI Completion API)
   llm/src/evaluation.py        # Execution Accuracy (EX)
   llm/src/evaluation_ves.py    # Valid Efficiency Score (VES)
-  llm/exp_result/              # kết quả dự đoán (turbo_output* là baseline mẫu có sẵn từ repo gốc)
-Notebook.ipynb                 # notebook chạy thử nghiệm
+  llm/exp_result/              # prediction outputs (turbo_output* are the sample baseline shipped upstream)
+Notebook.ipynb                 # experiment notebook
 ```
 
-> **Toàn bộ BIRD dev set (database + json + gold sql) không được commit vào repo này** — dữ liệu
-> thuộc giấy phép CC BY-SA 4.0 của BIRD-SQL, mỗi người cần tự tải về theo hướng dẫn dưới đây thay
-> vì lấy từ git.
+> **The full BIRD dev set (databases + json + gold SQL) is not committed to this repo.** The
+> data is licensed CC BY-SA 4.0 by the BIRD-SQL authors — download it yourself following the
+> instructions below instead of pulling it from git.
 
-## Thiết lập
+## Setup
 
-1. Tạo virtualenv và cài dependency (đã có sẵn trong `venv/`, không commit lên git):
+1. Create a virtualenv and install dependencies (already set up locally under `venv/`, not
+   committed to git):
    ```
    pip install google-generativeai google-genai groq pandas tqdm python-dotenv sqlparse backoff func_timeout
    ```
-2. Tải bộ `dev` từ https://bird-bench.github.io/ (mục Dev Set), giải nén rồi copy vào đúng vị trí:
+2. Download the `dev` set from https://bird-bench.github.io/ (Dev Set section), unzip it, and
+   copy the files into place:
    ```
    dev.json               -> src/DAMO-ConvAI/bird/data/dev.json
    dev_tables.json         -> src/DAMO-ConvAI/bird/data/dev_tables.json
    dev_tied_append.json    -> src/DAMO-ConvAI/bird/data/dev_tied_append.json
    dev.sql                 -> src/DAMO-ConvAI/bird/llm/data/dev_gold.sql
-   dev_databases.zip       -> giải nén vào src/DAMO-ConvAI/bird/data/dev_databases/
+   dev_databases.zip       -> unzip into src/DAMO-ConvAI/bird/data/dev_databases/
    ```
-3. Tạo file `.env` ở gốc dự án:
+3. Create a `.env` file at the project root:
    ```
    GEMINI_API_KEY=...
    FREE_API_KEY=...   # Groq API key
    ```
 
-## Chạy inference
-
-```bash
-cd src/DAMO-ConvAI/bird/llm
-python src/modern_llm_request.py --provider gemini --model gemini-2.5-flash \
-  --use_knowledge True --data_output_path ./exp_result/gemini_output/
-
-python src/modern_llm_request.py --provider groq --model llama-3.3-70b-versatile \
-  --use_knowledge True --data_output_path ./exp_result/groq_output/
-```
-
-## Đánh giá (Execution Accuracy / VES)
+## Evaluation (Execution Accuracy / VES)
 
 ```bash
 cd src/DAMO-ConvAI/bird/llm
 sh run/run_evaluation.sh
 ```
 
-## Ghi công
+## Credits
 
-Code trong `src/DAMO-ConvAI/bird/` (trừ `modern_llm_request.py`) được lấy từ
+Code under `src/DAMO-ConvAI/bird/` comes from
 [AlibabaResearch/DAMO-ConvAI](https://github.com/AlibabaResearch/DAMO-ConvAI) (MIT License).
-Bộ dữ liệu BIRD-SQL thuộc giấy phép CC BY-SA 4.0 — xem https://bird-bench.github.io/.
+The BIRD-SQL dataset is licensed CC BY-SA 4.0 — see https://bird-bench.github.io/.

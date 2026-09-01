@@ -37,3 +37,4 @@ src/DAMO-ConvAI/bird/llm/data/dev_gold.sql
 # keep the original turbo_output(_kg) samples shipped by DAMO-ConvAI as a reference baseline
 src/DAMO-ConvAI/bird/llm/exp_result/gemini_output*/
 src/DAMO-ConvAI/bird/llm/exp_result/groq_output*/
+src/DAMO-ConvAI/bird/llm/run/run_ollama_eval.ps1

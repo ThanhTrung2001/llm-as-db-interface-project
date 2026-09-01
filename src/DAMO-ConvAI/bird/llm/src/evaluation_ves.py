@@ -161,9 +161,11 @@ if __name__ == '__main__':
     args_parser.add_argument('--mode_gt', type=str, default='gt')
     args_parser.add_argument('--mode_predict', type=str, default='gpt')
     args_parser.add_argument('--diff_json_path',type=str,default='')
+    args_parser.add_argument('--iterate_num', type=int, default=5,
+                              help='SQL re-execution count for timing stability (paper uses 5; code default was 100)')
     args = args_parser.parse_args()
     exec_result = []
-    
+
     pred_queries, db_paths = package_sqls(args.predicted_sql_path, args.db_root_path, mode=args.mode_predict,
                                           data_mode=args.data_mode)
     # generate gt sqls:
@@ -171,7 +173,8 @@ if __name__ == '__main__':
                                            data_mode=args.data_mode)
 
     query_pairs = list(zip(pred_queries, gt_queries))
-    run_sqls_parallel(query_pairs, db_places=db_paths, num_cpus=args.num_cpus, meta_time_out=args.meta_time_out)
+    run_sqls_parallel(query_pairs, db_places=db_paths, num_cpus=args.num_cpus,
+                       iterate_num=args.iterate_num, meta_time_out=args.meta_time_out)
     exec_result = sort_results(exec_result)
     print('start calculate')
     simple_ves, moderate_ves, challenging_ves, ves, count_lists = \

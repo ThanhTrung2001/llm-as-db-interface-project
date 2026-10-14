@@ -136,6 +136,51 @@ Bản `dev.json` dùng trong đồ án (thư mục gốc `dev_20240627`) nằm *
 
 So với paper gốc (ChatGPT w/ KG dev: 37.22% gốc / 42.24% đã cập nhật) — GPT-3.5-Turbo hiện tại (47.78%) **vượt cả 2 mốc**, một phần do model đã cải tiến (model drift), một phần do dataset đã sạch hơn (dataset drift).
 
+### 8.1. Phát triển: Gap 3 — Chuẩn hoá evidence trước khi đưa vào prompt
+
+**Vấn đề (paper mục 6.6, 17,6% lỗi "hiểu sai evidence"):** evidence do người viết trong BIRD dùng hàm giả mà SQLite không có (`DIVIDE`, `SUBTRACT`, `MULTIPLY`, `YEAR`...). Model chép nguyên vào SQL → lỗi `no such function`.
+
+**Cách làm:** hàm `normalize_pseudo_sql()` (`src/evidence_norm.py`) đổi các hàm giả sang SQLite hợp lệ *trước khi* ghép evidence vào prompt: `DIVIDE(a, b)` → `CAST(a AS REAL) / b`, `SUBTRACT/MULTIPLY/ADD` → toán tử, `YEAR/MONTH/DAY(x)` → `CAST(STRFTIME(...) AS INTEGER)`. Không đổi DB, `dev.json`, script gốc hay bộ chấm; SQL do LLM sinh ra giữ nguyên (không hậu xử lý). Chi tiết lệnh chạy: `docs/gap3_runbook.md`.
+
+**Số liệu evidence (dev 1534 câu):** 192 evidence chứa hàm giả; **182** được hàm đổi (`exp_result/gap3/changed_ids.json`); 21 evidence tự thân sai cú pháp (thiếu/thừa ngoặc, `;` thay `,`) không sửa được (`malformed_ids.json`).
+
+**Thiết kế thí nghiệm:** chỉ chạy lại 182 câu có evidence bị đổi (1352 câu còn lại prompt giống hệt) — 2 lượt cùng lúc, cùng model:
+- `ctrl` (đối chứng): evidence gốc
+- `norm`: evidence đã chuẩn hoá (`--normalize_evidence`)
+
+Rồi ghép mỗi lượt vào file full 1534 câu (`*_kg_ctrl_v2`, `*_kg_norm_v2`) và chấm bằng `evaluation.py` / `evaluation_ves.py` gốc (Kaggle, `iterate_num=5`). **Hiệu ứng = norm − ctrl.** Chỉ áp dụng cho w/ KG (w/o KG không có evidence → không bị ảnh hưởng).
+
+**SQL bị chép hàm giả (trong 182 câu), ctrl → norm:** GPT-3.5 51→3, DeepSeek 47→1, Gemma3 24→2, Qwen2.5 3→0.
+
+**Kết quả toàn tập 1534 câu (Kaggle, `exp_result/gap3/summary_gap3_ex_ves.csv`):**
+
+| Model | EX ctrl | EX norm | ΔEX | VES ctrl | VES norm | ΔVES |
+|---|---|---|---|---|---|---|
+| GPT-3.5-Turbo | 47.91 | 48.11 | +0.20 | 56.58 | 57.24 | +0.66 |
+| DeepSeek-Coder-V2 | 42.11 | 43.22 | **+1.11** | 45.80 | 46.62 | +0.82 |
+| Gemma3 | 48.70 | 49.54 | **+0.84** | 54.86 | 56.40 | +1.54 |
+| Qwen2.5-Coder | 53.85 | 54.17 | +0.32 | 59.83 | 60.68 | +0.85 |
+
+**Kết quả trên 182 câu bị ảnh hưởng (EX, ghép cặp từng câu, kiểm định McNemar chính xác):**
+
+| Model | EX ctrl | EX norm | sai→đúng / đúng→sai | p |
+|---|---|---|---|---|
+| GPT-3.5-Turbo | 23.63 | 25.27 | 13 / 10 | 0.68 |
+| DeepSeek-Coder-V2 | 23.08 | 32.42 | 28 / 11 | **0.009** |
+| Gemma3 | 31.87 | 39.01 | 19 / 6 | **0.015** |
+| Qwen2.5-Coder | 45.05 | 47.80 | 10 / 5 | 0.30 |
+
+**Kết luận:**
+- Chuẩn hoá loại bỏ gần như toàn bộ lỗi chép cú pháp giả ở cả 4 model.
+- EX luôn tăng; có ý nghĩa thống kê ở **DeepSeek và Gemma3** — đúng 2 model chép evidence nhiều nhất. Qwen hầu như không chép nên ít được lợi.
+- GPT-3.5: hết lỗi cú pháp nhưng EX gần như không đổi — trong 74 câu ctrl lỗi chạy, 43 câu hết lỗi nhưng chỉ 8 câu thành đúng; còn lại sai logic (COUNT DISTINCT, CASE WHEN, JOIN) hoặc sai cột (`no such column`, thuộc Gap 2). → Lỗi "hiểu sai evidence" có 2 lớp: cú pháp (nông, sửa được bằng luật) và ngữ nghĩa (sâu hơn).
+- Mức tăng toàn tập tập trung ở câu **challenging** (GPT-3.5: +2.07 ở challenging, ~0 ở simple/moderate).
+
+**Lưu ý khi trích dẫn:**
+- Ollama: 1352 câu nền của file `_v2` đang lấy từ file full cũ (prompt trước khi sửa bug, mục 5.1) → số toàn tập Ollama là **tạm thời**; ΔEX/ΔVES vẫn hợp lệ vì nền giống nhau ở ctrl và norm. Khi có baseline full mới (cell 6 của `gap3-ollama-kaggle.ipynb`) thì ghép lại và chấm lại.
+- VES đo theo thời gian chạy nên dao động giữa các lần chấm (vd. GPT-3.5 ctrl 56.58 trên Kaggle so với 53.88 lần chấm trước) → chỉ so ctrl với norm trong cùng một lần chạy notebook.
+- EX của cùng file chênh nhẹ giữa local (8 CPU) và Kaggle (4 CPU) do vài câu sát timeout 30s (GPT-3.5 ctrl: 47.98 local vs 47.91 Kaggle) → dùng số của cùng một môi trường.
+
 ---
 
 ## 9. Việc còn lại (chưa hoàn thành)
@@ -147,6 +192,7 @@ So với paper gốc (ChatGPT w/ KG dev: 37.22% gốc / 42.24% đã cập nhật
 5. Quyết định cuối cùng về Claude (Anthropic) — không có phương án free, cân nhắc bỏ qua hoặc trả ~$8 qua OpenRouter
 6. Viết báo cáo 5-7 trang theo cấu trúc: Tính SOTA → Phát triển từ bài báo (What/How/Why) → Cài đặt minh họa, dùng nội dung đã soạn ở các phần trước trong hội thoại
 7. Đẩy code lên GitHub (repo đã dựng sẵn, chưa push)
+8. Gap 3: chạy baseline full 1534 câu mới cho 3 model Ollama (cell 6 `gap3-ollama-kaggle.ipynb`), ghép lại 182 câu ctrl/norm vào đó, chấm lại bằng `gap3-evaluation-kaggle.ipynb` để có số toàn tập chính thức cho Ollama
 
 ---
 
@@ -160,10 +206,16 @@ src/DAMO-ConvAI/bird/llm/src/
   ollama_request.py        # Ollama local (qwen2.5-coder, deepseek-coder-v2, gemma3) — chạy trên Kaggle
   openai_request.py        # OpenAI (gpt-3.5-turbo), có flag --cot, khớp tham số gốc
   evaluation.py / evaluation_ves.py   # gốc paper, tái sử dụng nguyên vẹn
+  evidence_norm.py         # Gap 3: normalize_pseudo_sql() (+ test_evidence_norm.py)
+  openai_request2.py / ollama_request2.py   # Gap 3: bản 2 của script gốc, thêm --normalize_evidence, --ids_file
+  gap3_tools.py            # Gap 3: stats / merge / ex (offline)
 
 evaluation-and-ves-local.ipynb   # Notebook tổng hợp EX/VES local, xuất CSV
 run-evaluation.ipynb             # Phiên bản chạy trên Kaggle
 llm-as-db-interface-ollama-kaggle.ipynb   # Notebook chạy Ollama trên Kaggle
+gap3-ollama-kaggle.ipynb         # Gap 3: chạy ctrl182 / norm182 (+ baseline full) cho 3 model Ollama
+gap3-evaluation-kaggle.ipynb     # Gap 3: EX + VES toàn tập cho các file *_v2
+docs/gap3_runbook.md             # Gap 3: các bước chạy, local vs Kaggle
 ```
 
 ---

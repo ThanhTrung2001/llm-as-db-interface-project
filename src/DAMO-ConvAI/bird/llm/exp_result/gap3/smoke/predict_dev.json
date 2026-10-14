@@ -1,0 +1,7 @@
+{
+    "115": "SELECT (CAST(COUNT(client_id) AS REAL) / (SELECT COUNT(client_id) FROM client)) * 100\nFROM client\nJOIN district ON client.district_id = district.district_id\nWHERE district.A3 = 'south Bohemia'\nAND district.A4 = (SELECT MAX(A4) FROM district WHERE A3 = 'south Bohemia')\nAND client.gender = 'M'\t----- bird -----\tfinancial",
+    "198": "SELECT AVG(CAST(SUM(b.bond_type = '-') AS REAL) / COUNT(a.atom_id))\nFROM atom a\nJOIN bond b ON a.molecule_id = b.molecule_id\nJOIN molecule m ON a.molecule_id = m.molecule_id\nWHERE m.label = '+'\t----- bird -----\ttoxicology",
+    "201": "SELECT CAST(SUM(a.element = 'c') AS REAL) / COUNT(a.atom_id) * 100 AS percentage\nFROM atom a\nJOIN molecule m ON a.molecule_id = m.molecule_id\nJOIN bond b ON b.molecule_id = m.molecule_id\nWHERE b.bond_type = '='\nGROUP BY m.molecule_id\nHAVING COUNT(DISTINCT a.atom_id) > 1\t----- bird -----\ttoxicology",
+    "218": "SELECT CAST(COUNT(DISTINCT m.molecule_id) - COUNT(DISTINCT a.atom_id) AS REAL) / COUNT(DISTINCT m.molecule_id) * 100\nFROM molecule m\nLEFT JOIN atom a ON m.molecule_id = a.molecule_id\nWHERE m.label = '+'\t----- bird -----\ttoxicology",
+    "219": "SELECT CAST(SUM(b.bond_type = '\t----- bird -----\ttoxicology"
+}

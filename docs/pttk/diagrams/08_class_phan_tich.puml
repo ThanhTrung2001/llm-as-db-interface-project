@@ -1,0 +1,118 @@
+@startuml class_phan_tich
+!include _style.iuml
+title Biểu đồ lớp phân tích (boundary – control – entity)
+hide empty members
+skinparam classAttributeIconSize 0
+
+package "Boundary" {
+  class ManDangNhap <<boundary>>
+  class ManHoiDap <<boundary>>
+  class ManLichSu <<boundary>>
+  class ManBenchmark <<boundary>>
+  class ManTuDien <<boundary>>
+  class ManQuanTri <<boundary>>
+  class LLMGateway <<boundary>> {
+    +generate_sql(model, prompt): str
+  }
+}
+
+package "Control" {
+  class XacThucControl <<control>> {
+    +login(username, password): token
+    +current_user(token): NguoiDung
+    +require(roles)
+  }
+  class HoiDapControl <<control>> {
+    +ask(user, question, mode, ...): KetQua
+    +match_glossary(question): ThuatNgu[]
+  }
+  class PromptBuilder <<control>> {
+    +schema_prompt(role): str
+    +build_prompt(question, knowledge, role): str
+  }
+  class QueryGuard <<control>> {
+    +check_select(sql): str
+    +execute(sql, role, timeout): rows
+  }
+  class AnswerBuilder <<control>> {
+    +make_answer(question, columns, rows, model): str
+    +template_answer(columns, rows): str
+  }
+  class BenchmarkControl <<control>> {
+    +import_benchmark(file)
+    +summary(): EX theo model, cấu hình, độ khó
+  }
+}
+
+package "Entity" {
+  class NguoiDung <<entity>> {
+    username
+    full_name
+    role: member | board | admin
+    is_active
+  }
+  class CauHinhModel <<entity>> {
+    name
+    provider
+    model_tag
+    base_url
+    is_active
+  }
+  class ThuatNgu <<entity>> {
+    term
+    definition
+    is_active
+  }
+  class CauHoiDev <<entity>> {
+    question
+    evidence
+    gold_sql
+    difficulty
+  }
+  class LuotBenchmark <<entity>> {
+    config
+    ex
+    full_dev_ex
+  }
+  class KetQuaBenchmark <<entity>> {
+    predicted_sql
+    is_correct
+  }
+  class NhatKyTruyVan <<entity>> {
+    question
+    mode
+    generated_sql
+    answer
+    status
+    latency_ms
+    is_correct
+  }
+  class DanhGia <<entity>> {
+    rating
+    comment
+  }
+}
+
+ManDangNhap --> XacThucControl
+ManHoiDap --> HoiDapControl
+ManLichSu --> NhatKyTruyVan
+ManBenchmark --> BenchmarkControl
+ManTuDien --> ThuatNgu
+ManQuanTri --> BenchmarkControl
+HoiDapControl --> PromptBuilder
+HoiDapControl --> QueryGuard
+HoiDapControl --> LLMGateway
+HoiDapControl --> AnswerBuilder
+AnswerBuilder --> LLMGateway
+HoiDapControl --> NhatKyTruyVan : tạo
+
+NguoiDung "1" -- "0..*" NhatKyTruyVan : đặt
+CauHinhModel "1" -- "0..*" NhatKyTruyVan
+CauHinhModel "1" -- "0..*" LuotBenchmark
+LuotBenchmark "1" *-- "158" KetQuaBenchmark
+CauHoiDev "1" -- "0..*" KetQuaBenchmark
+CauHoiDev "0..1" -- "0..*" NhatKyTruyVan
+NhatKyTruyVan "1" -- "0..*" DanhGia
+NguoiDung "1" -- "0..*" DanhGia
+NguoiDung "1" -- "0..*" ThuatNgu : cập nhật
+@enduml

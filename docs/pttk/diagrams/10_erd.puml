@@ -1,0 +1,153 @@
+@startuml erd
+!include _style.iuml
+title ERD — CSDL nguồn student_club (đảo ngược, chỉ đọc) và CSDL ứng dụng app.sqlite
+hide circle
+set separator none
+skinparam linetype ortho
+
+package "student_club.sqlite (nguồn, chỉ đọc)" #f3f7fd {
+  entity member {
+    * member_id : TEXT <<PK>>
+    --
+    first_name, last_name : TEXT
+    email : TEXT <<hạn chế>>
+    position : TEXT
+    t_shirt_size : TEXT
+    phone : TEXT <<hạn chế>>
+    zip : INTEGER <<FK>>
+    link_to_major : TEXT <<FK>>
+  }
+  entity major {
+    * major_id : TEXT <<PK>>
+    --
+    major_name, department, college : TEXT
+  }
+  entity zip_code {
+    * zip_code : INTEGER <<PK>>
+    --
+    type, city, county, state, short_state : TEXT
+  }
+  entity event {
+    * event_id : TEXT <<PK>>
+    --
+    event_name, event_date, type : TEXT
+    notes, location, status : TEXT
+  }
+  entity attendance {
+    * link_to_event : TEXT <<PK, FK>>
+    * link_to_member : TEXT <<PK, FK>>
+  }
+  entity budget <<hạn chế>> {
+    * budget_id : TEXT <<PK>>
+    --
+    category : TEXT
+    spent, remaining, amount : REAL
+    event_status : TEXT
+    link_to_event : TEXT <<FK>>
+  }
+  entity expense <<hạn chế>> {
+    * expense_id : TEXT <<PK>>
+    --
+    expense_description, expense_date : TEXT
+    cost : REAL
+    approved : TEXT
+    link_to_member : TEXT <<FK>>
+    link_to_budget : TEXT <<FK>>
+  }
+  entity income <<hạn chế>> {
+    * income_id : TEXT <<PK>>
+    --
+    date_received : TEXT
+    amount : INTEGER
+    source, notes : TEXT
+    link_to_member : TEXT <<FK>>
+  }
+}
+
+major ||--o{ member
+zip_code ||--o{ member
+member ||--o{ attendance
+event ||--o{ attendance
+event ||--o{ budget
+budget ||--o{ expense
+member ||--o{ expense
+member ||--o{ income
+
+package "app.sqlite (ứng dụng)" #fdf8ee {
+  entity user_account {
+    * id : INTEGER <<PK>>
+    --
+    username : TEXT <<UNIQUE>>
+    full_name, password_hash : TEXT
+    role : member | board | admin
+    is_active : INTEGER
+  }
+  entity model_config {
+    * id : INTEGER <<PK>>
+    --
+    name : TEXT <<UNIQUE>>
+    provider : openai | groq | openrouter | ollama
+    model_tag, base_url, api_key_env : TEXT
+    is_active : INTEGER
+  }
+  entity glossary_term {
+    * id : INTEGER <<PK>>
+    --
+    term : TEXT <<UNIQUE NOCASE>>
+    definition : TEXT
+    is_active : INTEGER
+    updated_by : INTEGER <<FK>>
+    updated_at : TEXT
+  }
+  entity dev_question {
+    * id : INTEGER <<PK>> (chỉ số trong dev.json)
+    --
+    question, evidence, gold_sql : TEXT
+    difficulty : simple | moderate | challenging
+  }
+  entity benchmark_run {
+    * id : INTEGER <<PK>>
+    --
+    model_id : INTEGER <<FK>>
+    config : no_evidence | evidence | evidence_norm
+    source, note : TEXT
+    ex, full_dev_ex : REAL
+    imported_at : TEXT
+  }
+  entity benchmark_item {
+    * run_id : INTEGER <<PK, FK>>
+    * question_id : INTEGER <<PK, FK>>
+    --
+    predicted_sql : TEXT
+    is_correct : INTEGER
+  }
+  entity query_log {
+    * id : INTEGER <<PK>>
+    --
+    user_id : INTEGER <<FK>>
+    model_id, run_id, dev_question_id : INTEGER <<FK>>
+    question, mode, evidence_used, glossary_used : TEXT
+    generated_sql, answer, status, error : TEXT
+    latency_ms, row_count, is_correct : INTEGER
+    created_at : TEXT
+  }
+  entity feedback {
+    * id : INTEGER <<PK>>
+    --
+    query_log_id, user_id : INTEGER <<FK>>
+    rating : -1 | 1
+    comment, created_at : TEXT
+  }
+}
+
+user_account ||--o{ query_log
+user_account ||--o{ feedback
+user_account |o--o{ glossary_term
+model_config ||--o{ benchmark_run
+model_config |o--o{ query_log
+benchmark_run ||--|{ benchmark_item
+dev_question ||--o{ benchmark_item
+dev_question |o--o{ query_log
+benchmark_run |o--o{ query_log
+query_log ||--o{ feedback
+@enduml

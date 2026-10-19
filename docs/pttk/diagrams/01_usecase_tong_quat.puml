@@ -1,0 +1,46 @@
+@startuml usecase_tong_quat
+!include _style.iuml
+left to right direction
+title Biểu đồ use case tổng quát — ClubQuery
+
+actor "Thành viên" as TV
+actor "Ban chủ nhiệm /\nThủ quỹ" as BCN
+actor "Quản trị viên" as QTV
+actor "Dịch vụ LLM\n(OpenAI, Groq, Ollama)" as LLM <<hệ thống ngoài>>
+
+BCN -|> TV
+QTV -|> BCN
+
+rectangle "ClubQuery" {
+  usecase "UC01 Đăng nhập" as UC01
+  usecase "UC02 Đặt câu hỏi\nbằng ngôn ngữ tự nhiên" as UC02
+  usecase "UC03 Xem lịch sử câu hỏi" as UC03
+  usecase "UC04 Đánh giá câu trả lời" as UC04
+  usecase "UC05 Xuất kết quả CSV" as UC05
+  usecase "UC06 Quản lý từ điển nghiệp vụ" as UC06
+  usecase "UC07 Cấu hình model LLM" as UC07
+  usecase "UC08 Nhập kết quả benchmark" as UC08
+  usecase "UC09 Xem dashboard benchmark" as UC09
+  usecase "UC10 Xem nhật ký truy vấn" as UC10
+  usecase "UC11 Quản lý tài khoản, vai trò" as UC11
+}
+
+TV --> UC01
+TV --> UC02
+TV --> UC03
+TV --> UC04
+BCN --> UC05
+BCN --> UC09
+QTV --> UC06
+QTV --> UC07
+QTV --> UC08
+QTV --> UC10
+QTV --> UC11
+UC02 --> LLM
+
+note right of TV
+  Thành viên không được hỏi về
+  budget, expense, income và
+  email, phone của thành viên (BR03)
+end note
+@enduml

@@ -1,0 +1,53 @@
+@startuml activity_hoi_dap
+!include _style.iuml
+title Biểu đồ hoạt động — UC02 Đặt câu hỏi
+
+|Người dùng|
+start
+:Chọn chế độ (trực tiếp / phát lại);
+:Nhập câu hỏi hoặc chọn câu hỏi mẫu;
+:Bấm "Hỏi";
+|Hệ thống|
+if (Chế độ?) then (phát lại)
+  :Lấy SQL đã sinh trong lượt benchmark;
+else (trực tiếp)
+  :Ghép evidence của câu mẫu (nếu có);
+  if (Câu hỏi chứa thuật ngữ đang bật?) then (có)
+    :Ghép định nghĩa thuật ngữ vào evidence;
+  endif
+  :Chuẩn hoá hàm giả trong evidence\n(normalize_pseudo_sql);
+  :Dựng prompt với schema theo vai trò;
+  |Dịch vụ LLM|
+  :Sinh câu trả lời;
+  |Hệ thống|
+  :Tách SQL khỏi câu trả lời (extract_sql);
+endif
+:Kiểm tra SQL (BR01);
+if (Gọi model lỗi / không phải SQL?) then (có)
+  :Trạng thái = FAILED_GENERATION;
+elseif (Nhiều câu lệnh / lệnh ghi?) then (có)
+  :Trạng thái = REJECTED_UNSAFE;
+else (đúng một câu SELECT)
+  |CSDL student_club|
+  :Thực thi chỉ đọc, authorizer theo vai trò,\ntimeout 10 giây (BR02, BR03);
+  |Hệ thống|
+  if (Kết quả?) then (bị chặn quyền)
+    :Trạng thái = REJECTED_PERMISSION;
+  elseif () then (quá giờ / lỗi)
+    :Trạng thái = TIMEOUT / EXEC_ERROR;
+  else (thành công)
+    :Trạng thái = EXECUTED;
+    :Diễn giải kết quả thành câu trả lời\n(trực tiếp: model; phát lại: câu mẫu);
+    if (Câu hỏi thuộc bộ dev?) then (có)
+      :Chạy SQL gold, so tập kết quả\n→ đúng / sai;
+    endif
+  endif
+endif
+:Ghi query_log với trạng thái cuối (BR04);
+|Người dùng|
+:Xem câu trả lời, bảng dữ liệu,\nSQL (thu gọn), đúng/sai;
+if (Muốn đánh giá?) then (có)
+  :Bấm Đúng / Sai (UC04);
+endif
+stop
+@enduml

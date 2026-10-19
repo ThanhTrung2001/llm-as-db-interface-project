@@ -1,0 +1,48 @@
+@startuml component_deployment
+!include _style.iuml
+title Kiến trúc thành phần và triển khai
+set separator none
+
+node "Máy người dùng" {
+  component "Trình duyệt\nindex.html + app.js" as FE
+}
+
+node "Máy chủ ứng dụng (Python 3, uvicorn)" {
+  component "FastAPI\nmain.py (API + phân quyền)" as API
+  component "service.py\n(điều phối UC02)" as SV
+  component "prompt.py" as PR
+  component "guard.py\n(BR01–BR03)" as G
+  component "llm.py" as LLMC
+  component "answer.py\n(diễn giải kết quả)" as ANS
+  component "Thư viện BIRD tái sử dụng\nextract_sql, normalize_pseudo_sql,\nevaluation.py" as BIRD
+  database "app.sqlite" as APP
+  database "student_club.sqlite\n(mode=ro)" as SRC
+  component "per_db_ex.py\n(công cụ offline)" as TOOL
+}
+
+cloud "Dịch vụ LLM" {
+  component "OpenAI API" as OAI
+  component "Groq API" as GROQ
+}
+node "Máy có GPU (tuỳ chọn)" {
+  component "Ollama\n/v1 tương thích OpenAI" as OLL
+}
+
+FE --> API : HTTP(S) / JSON\nBearer token
+API --> SV
+API --> APP
+SV --> PR
+SV --> G
+SV --> LLMC
+SV --> ANS
+ANS --> LLMC
+SV --> BIRD
+G --> SRC
+PR --> SRC
+SV --> APP
+LLMC --> OAI
+LLMC --> GROQ
+LLMC ..> OLL : tuỳ chọn
+TOOL --> BIRD
+TOOL ..> APP : file JSON → UC08
+@enduml

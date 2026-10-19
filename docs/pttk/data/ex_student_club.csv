@@ -1,0 +1,13 @@
+model,config,source,note,simple,moderate,challenging,total,n
+GPT-3.5-Turbo,no_evidence,openai_0_output,chính thức,46.53,27.08,0.0,37.97,158
+GPT-3.5-Turbo,evidence,openai_output,chính thức,60.4,35.42,11.11,50.0,158
+GPT-3.5-Turbo,evidence_norm,gap3/turbo_kg_norm_v2,Gap 3,61.39,39.58,11.11,51.9,158
+DeepSeek-Coder-V2,no_evidence,ollama_deepseekcoder_0_output,tạm thời,43.56,25.0,11.11,36.08,158
+DeepSeek-Coder-V2,evidence,ollama_deepseekcoder_output,tạm thời,57.43,45.83,22.22,51.9,158
+DeepSeek-Coder-V2,evidence_norm,gap3/deepseek_kg_norm_v2,"Gap 3, tạm thời",56.44,54.17,22.22,53.8,158
+Gemma3,no_evidence,ollama_gemma3_0_output,tạm thời,59.41,29.17,44.44,49.37,158
+Gemma3,evidence,ollama_gemma3_output,tạm thời,78.22,62.5,44.44,71.52,158
+Gemma3,evidence_norm,gap3/gemma3_kg_norm_v2,"Gap 3, tạm thời",77.23,60.42,55.56,70.89,158
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,tạm thời,58.42,29.17,11.11,46.84,158
+Qwen2.5-Coder,evidence,ollama_gwen25_output,tạm thời,82.18,58.33,33.33,72.15,158
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,"Gap 3, tạm thời",82.18,58.33,55.56,73.42,158

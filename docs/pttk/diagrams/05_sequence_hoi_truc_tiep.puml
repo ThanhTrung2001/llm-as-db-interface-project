@@ -1,0 +1,52 @@
+@startuml sequence_hoi_truc_tiep
+!include _style.iuml
+title Biểu đồ tuần tự — Hỏi trực tiếp (UC02.1)
+autonumber
+
+actor "Người dùng" as U
+boundary "Màn Hỏi đáp\n(app.js)" as UI
+control "API /api/ask\n(main.py)" as API
+control "service.ask()" as SV
+control "prompt" as PR
+participant "Dịch vụ LLM" as LLM
+control "guard" as G
+database "student_club.sqlite\n(chỉ đọc)" as SRC
+database "app.sqlite" as APP
+
+U -> UI : nhập câu hỏi, chọn model, bấm Hỏi
+UI -> API : POST /api/ask {mode: live, model_id, question}
+API -> API : current_user() kiểm tra token
+API -> SV : ask(user, question, ...)
+SV -> APP : đọc model_config, glossary_term
+SV -> SV : match_glossary(), normalize_pseudo_sql()
+SV -> PR : build_prompt(question, evidence, role)
+PR --> SV : prompt (schema đã lọc theo vai trò)
+SV -> LLM : chat.completions.create(prompt, temperature=0)
+alt gọi model lỗi
+  LLM --> SV : lỗi
+  SV -> APP : INSERT query_log (FAILED_GENERATION)
+else thành công
+  LLM --> SV : văn bản có khối sql
+  SV -> SV : extract_sql()
+  SV -> G : check_select(sql)
+  alt không phải SELECT
+    G --> SV : QueryRejected(REJECTED_UNSAFE)
+  else hợp lệ
+    SV -> G : execute(sql, role)
+    G -> SRC : mở mode=ro, set_authorizer(role), progress handler
+    alt đọc dữ liệu bị cấm
+      SRC --> G : not authorized
+      G --> SV : QueryRejected(REJECTED_PERMISSION)
+    else thành công
+      SRC --> G : các dòng kết quả
+      G --> SV : columns, rows
+      SV -> LLM : diễn giải (câu hỏi + tối đa 30 dòng kết quả)
+      LLM --> SV : câu trả lời tiếng Việt
+    end
+  end
+  SV -> APP : INSERT query_log (trạng thái cuối)
+end
+SV --> API : kết quả + log_id
+API --> UI : JSON
+UI --> U : câu trả lời, bảng dữ liệu, SQL (thu gọn)
+@enduml

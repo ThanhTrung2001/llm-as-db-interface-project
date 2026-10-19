@@ -1,0 +1,23 @@
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam roundCorner 8
+skinparam ArrowColor #52514e
+skinparam BorderColor #52514e
+skinparam BackgroundColor #ffffff
+skinparam usecase {
+  BackgroundColor #eaf2fc
+  BorderColor #2a78d6
+}
+skinparam actor {
+  BorderColor #52514e
+  BackgroundColor #ffffff
+}
+skinparam rectangle {
+  BackgroundColor #fcfcfb
+  BorderColor #9a9994
+}
+skinparam note {
+  BackgroundColor #fdf3dc
+  BorderColor #c9a24a
+}

@@ -42,3 +42,11 @@ src/DAMO-ConvAI/bird/llm/run/run_ollama_eval.ps1
 # Kaggle upload bundle for Gap 3 (rebuild from src/ when needed)
 bird-gap3-src.zip
 bird-gap3-eval.zip
+
+# PlantUML jar (tải lại theo docs/pttk/README.md)
+tools/
+# CSDL ứng dụng sinh khi chạy
+app/data/app.sqlite
+.playwright-cli/
+# chứa câu hỏi + gold SQL của BIRD (không phân phối lại) — sinh bằng app/scripts/per_db_ex.py
+app/data/benchmark_*.json

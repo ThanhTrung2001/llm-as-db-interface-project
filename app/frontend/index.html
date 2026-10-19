@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClubQuery</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Màn đăng nhập (UC01) -->
+  <section id="login-view" class="login" hidden>
+    <form id="login-form" class="card login-card">
+      <h1>ClubQuery</h1>
+      <p class="muted">Hỏi đáp dữ liệu câu lạc bộ sinh viên bằng ngôn ngữ tự nhiên</p>
+      <label>Tên đăng nhập <input name="username" autocomplete="username" required></label>
+      <label>Mật khẩu <input name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit" class="primary">Đăng nhập</button>
+      <p id="login-error" class="error" hidden></p>
+      <details class="muted small"><summary>Tài khoản demo</summary>
+        admin / admin123 (Quản trị) · thuquy / thuquy123 (Thủ quỹ) · thanhvien / thanhvien123 (Thành viên)
+      </details>
+    </form>
+  </section>
+
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <strong class="brand">ClubQuery</strong>
+      <nav id="tabs"></nav>
+      <span class="spacer"></span>
+      <span id="who" class="muted small"></span>
+      <button id="logout" class="ghost">Đăng xuất</button>
+    </header>
+
+    <main>
+      <!-- UC02 Đặt câu hỏi -->
+      <section data-tab="ask">
+        <div class="card">
+          <div class="seg" role="tablist">
+            <button data-mode="replay" class="on">Phát lại benchmark</button>
+            <button data-mode="live">Hỏi trực tiếp</button>
+          </div>
+          <p class="muted small" id="mode-hint"></p>
+
+          <div class="grid2">
+            <label id="run-field">Lượt benchmark <select id="run"></select></label>
+            <label id="model-field" hidden>Model <select id="model"></select></label>
+            <label>Câu hỏi mẫu (bộ dev BIRD, 158 câu)
+              <select id="devq"><option value="">— tự nhập câu hỏi —</option></select>
+            </label>
+          </div>
+          <label id="question-field" hidden>Câu hỏi
+            <textarea id="question" rows="2" placeholder="Ví dụ: How many meetings were held in 2020?"></textarea>
+          </label>
+          <div id="live-opts" class="row small" hidden>
+            <label class="check"><input type="checkbox" id="use-evidence" checked> Dùng evidence của câu mẫu</label>
+            <label class="check"><input type="checkbox" id="use-glossary" checked> Áp dụng từ điển nghiệp vụ</label>
+          </div>
+          <div id="devq-preview" class="muted small"></div>
+          <button id="ask-btn" class="primary">Hỏi</button>
+        </div>
+        <div id="result"></div>
+      </section>
+
+      <!-- UC03 Lịch sử -->
+      <section data-tab="history" hidden>
+        <div class="card"><h2>Lịch sử câu hỏi của tôi</h2><div id="history-table"></div></div>
+      </section>
+
+      <!-- UC09 Dashboard benchmark -->
+      <section data-tab="bench" hidden>
+        <div class="card viz-root">
+          <h2>EX trên CSDL student_club (158 câu)</h2>
+          <p class="muted small">EX = tỉ lệ câu có kết quả thực thi trùng đáp án chuẩn. Chấm bằng
+            <code>evaluation.py</code> gốc của BIRD. Số của 3 model Ollama là <b>tạm thời</b>
+            (đo trước khi sửa lỗi prompt). Sai số với 158 câu khoảng ±8 điểm.</p>
+          <div id="legend" class="legend"></div>
+          <div id="chart" class="chart"></div>
+          <div id="tooltip" class="tooltip" hidden></div>
+          <h3>Bảng số liệu</h3>
+          <div id="bench-table"></div>
+        </div>
+      </section>
+
+      <!-- UC06 Từ điển nghiệp vụ -->
+      <section data-tab="glossary" hidden>
+        <div class="card">
+          <h2>Từ điển nghiệp vụ</h2>
+          <p class="muted small">Khi câu hỏi chứa thuật ngữ đang bật, định nghĩa được ghép vào prompt
+            như <i>evidence</i> (cách BIRD cung cấp tri thức ngoài).</p>
+          <form id="term-form" class="row admin-only">
+            <input name="term" placeholder="Thuật ngữ (vd: buổi họp)" required>
+            <input name="definition" placeholder="Định nghĩa (vd: event.type = 'Meeting')" required class="grow">
+            <button class="primary">Thêm</button>
+          </form>
+          <div id="glossary-table"></div>
+        </div>
+      </section>
+
+      <!-- UC07, UC08, UC10, UC11 Quản trị -->
+      <section data-tab="admin" hidden>
+        <div class="card"><h2>Nhật ký truy vấn</h2>
+          <div id="log-stats" class="row"></div>
+          <label class="small">Lọc trạng thái <select id="log-filter"><option value="">Tất cả</option></select></label>
+          <div id="logs-table"></div>
+        </div>
+        <div class="card"><h2>Cấu hình model</h2><div id="models-table"></div></div>
+        <div class="card"><h2>Nhập kết quả benchmark</h2>
+          <p class="muted small">File JSON do <code>app/scripts/per_db_ex.py</code> sinh ra.
+            Lượt cùng model và cấu hình sẽ được thay thế.</p>
+          <div class="row"><input type="file" id="bench-file" accept=".json">
+            <button id="bench-import" class="primary">Nhập</button></div>
+          <p id="bench-msg" class="small"></p>
+        </div>
+        <div class="card"><h2>Tài khoản</h2>
+          <form id="user-form" class="row">
+            <input name="username" placeholder="Tên đăng nhập" required>
+            <input name="full_name" placeholder="Họ tên" required>
+            <input name="password" type="password" placeholder="Mật khẩu (≥ 6 ký tự)" required>
+            <select name="role"><option value="member">Thành viên</option><option value="board">Ban chủ nhiệm</option>
+              <option value="admin">Quản trị</option></select>
+            <button class="primary">Thêm</button>
+          </form>
+          <div id="users-table"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

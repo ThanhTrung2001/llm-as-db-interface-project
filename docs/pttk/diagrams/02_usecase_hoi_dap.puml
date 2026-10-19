@@ -1,0 +1,33 @@
+@startuml usecase_hoi_dap
+!include _style.iuml
+left to right direction
+title Phân rã UC02 — Đặt câu hỏi bằng ngôn ngữ tự nhiên
+
+actor "Thành viên" as TV
+actor "Dịch vụ LLM" as LLM <<hệ thống ngoài>>
+
+rectangle "ClubQuery" {
+  usecase "UC02 Đặt câu hỏi\nbằng ngôn ngữ tự nhiên" as UC02
+  usecase "UC02.1 Hỏi trực tiếp" as LIVE
+  usecase "UC02.2 Phát lại benchmark" as REPLAY
+  usecase "UC02a Sinh SQL" as GEN
+  usecase "UC02b Kiểm tra an toàn\nvà quyền truy cập" as CHECK
+  usecase "UC02c Thực thi truy vấn chỉ đọc" as EXEC
+  usecase "UC02d Áp dụng thuật ngữ nghiệp vụ" as GLOSS
+  usecase "UC02e So sánh với đáp án chuẩn" as GOLD
+  usecase "UC02f Diễn giải kết quả\nthành câu trả lời" as ANS
+  usecase "Ghi nhật ký truy vấn" as LOG
+}
+
+TV --> UC02
+LIVE -|> UC02
+REPLAY -|> UC02
+LIVE ..> GEN : <<include>>
+UC02 ..> CHECK : <<include>>
+UC02 ..> EXEC : <<include>>
+UC02 ..> ANS : <<include>>
+UC02 ..> LOG : <<include>>
+GLOSS ..> GEN : <<extend>>\n[câu hỏi chứa thuật ngữ đang bật]
+GOLD ..> UC02 : <<extend>>\n[câu hỏi thuộc bộ dev BIRD]
+GEN --> LLM
+@enduml

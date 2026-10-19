@@ -1,0 +1,29 @@
+@startuml sequence_tu_dien
+!include _style.iuml
+title Biểu đồ tuần tự — Quản lý từ điển nghiệp vụ (UC06)
+autonumber
+
+actor "Quản trị viên" as A
+boundary "Màn Từ điển" as UI
+control "API /api/glossary" as API
+database "app.sqlite" as APP
+
+A -> UI : nhập thuật ngữ + định nghĩa, bấm Thêm
+UI -> API : POST /api/glossary {term, definition}
+API -> API : require('admin') (BR05)
+alt không phải quản trị viên
+  API --> UI : 403
+else
+  API -> APP : INSERT glossary_term
+  alt thuật ngữ đã tồn tại (UNIQUE NOCASE)
+    APP --> API : lỗi ràng buộc
+    API --> UI : 409 "Thuật ngữ đã tồn tại"
+  else
+    APP --> API : id mới
+    API --> UI : {id}
+    UI -> API : GET /api/glossary
+    API --> UI : danh sách
+    UI --> A : bảng thuật ngữ đã cập nhật
+  end
+end
+@enduml

@@ -1,0 +1,36 @@
+@startuml state_query_log
+!include _style.iuml
+title Biểu đồ trạng thái — một truy vấn (QueryLog)
+
+[*] --> Received : người dùng gửi câu hỏi
+Received --> Generated : model sinh SQL\n/ lấy SQL benchmark (phát lại)
+Received --> FAILED_GENERATION : lỗi gọi model
+Generated --> Validated : check_select() hợp lệ
+Generated --> REJECTED_UNSAFE : nhiều câu lệnh,\nlệnh ghi / DDL
+Generated --> FAILED_GENERATION : không phải SQL
+Validated --> EXECUTED : thực thi thành công
+Validated --> REJECTED_PERMISSION : authorizer chặn (BR03)
+Validated --> REJECTED_UNSAFE : authorizer chặn lệnh ghi
+Validated --> TIMEOUT : quá 10 giây (BR02)
+Validated --> EXEC_ERROR : lỗi cú pháp, sai cột
+
+state EXECUTED {
+  [*] --> ChuaCham
+  ChuaCham --> DaCham : câu hỏi thuộc bộ dev\n/ so tập kết quả với gold
+  DaCham --> DaDanhGia : người dùng bấm Đúng / Sai
+  ChuaCham --> DaDanhGia : người dùng bấm Đúng / Sai
+}
+
+EXECUTED --> [*] : ghi query_log
+FAILED_GENERATION --> [*] : ghi query_log
+REJECTED_UNSAFE --> [*] : ghi query_log
+REJECTED_PERMISSION --> [*] : ghi query_log
+TIMEOUT --> [*] : ghi query_log
+EXEC_ERROR --> [*] : ghi query_log
+
+note right of Received
+  Received, Generated, Validated là trạng thái
+  trung gian trong bộ nhớ; query_log.status
+  lưu trạng thái kết thúc (BR04).
+end note
+@enduml

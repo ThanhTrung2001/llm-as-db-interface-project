@@ -16,7 +16,6 @@ const TABS = [
   ['ask', 'Hỏi đáp', ['member', 'board', 'admin']],
   ['history', 'Lịch sử', ['member', 'board', 'admin']],
   ['bench', 'Benchmark', ['board', 'admin']],
-  ['glossary', 'Từ điển', ['member', 'board', 'admin']],
   ['admin', 'Quản trị', ['admin']],
 ];
 
@@ -88,7 +87,7 @@ async function start() {
 function go(tab) {
   document.querySelectorAll('main > section').forEach((s) => { s.hidden = s.dataset.tab !== tab; });
   $('#tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.go === tab));
-  ({ history: loadHistory, bench: loadBench, glossary: loadGlossary, admin: loadAdmin }[tab] || (() => {}))();
+  ({ history: loadHistory, bench: loadBench, admin: loadAdmin }[tab] || (() => {}))();
 }
 
 // ---------- UC02 Hỏi đáp ----------
@@ -129,7 +128,7 @@ $('#ask-btn').addEventListener('click', async () => {
   const body = { mode: state.mode, dev_question_id: devId };
   if (state.mode === 'replay') body.run_id = +$('#run').value;
   else Object.assign(body, { model_id: +$('#model').value, question: $('#question').value.trim(),
-    use_evidence: $('#use-evidence').checked, use_glossary: $('#use-glossary').checked });
+    use_evidence: $('#use-evidence').checked });
   const btn = $('#ask-btn');
   btn.disabled = true; btn.textContent = state.mode === 'live' ? 'Đang gọi model…' : 'Đang chạy…';
   try { renderResult(await api('/api/ask', { method: 'POST', body })); }
@@ -149,7 +148,6 @@ function renderResult(r) {
     ${r.error ? `<p class="error">${esc(r.error)}</p>` : ''}
     ${r.status === 'EXECUTED' ? `<h3>Dữ liệu${r.truncated ? ' (hiển thị 1000 dòng đầu)' : ''}</h3>${table(cols, r.rows)}` : ''}
     ${r.sql ? `<details><summary class="small">Xem SQL hệ thống đã chạy</summary><pre>${esc(r.sql)}</pre>
-      ${r.glossary_used?.length ? `<p class="small muted">Thuật ngữ áp dụng: ${r.glossary_used.map((t) => `<b>${esc(t.term)}</b> → ${esc(t.definition)}`).join('; ')}</p>` : ''}
       ${r.evidence_used ? `<p class="small muted">Evidence đưa vào prompt: ${esc(r.evidence_used)}</p>` : ''}</details>` : ''}
     ${r.gold_sql ? `<details><summary class="small">SQL đáp án chuẩn (gold)</summary><pre>${esc(r.gold_sql)}</pre></details>` : ''}
     <div class="row">
@@ -233,32 +231,6 @@ function drawBars(models, configs, by) {
     g.addEventListener('mouseleave', () => { tip.hidden = true; });
   });
 }
-
-// ---------- UC06 Từ điển ----------
-async function loadGlossary() {
-  const rows = await api('/api/glossary');
-  const isAdmin = state.user.role === 'admin';
-  $('#glossary-table').innerHTML = table([
-    { label: 'Thuật ngữ', key: 'term' }, { label: 'Định nghĩa', html: (r) => `<code>${esc(r.definition)}</code>` },
-    { label: 'Trạng thái', html: (r) => r.is_active ? '<span class="badge good">Đang bật</span>' : '<span class="badge">Tắt</span>' },
-    ...(isAdmin ? [{ label: '', html: (r) => `<button data-toggle="${r.id}" class="small">${r.is_active ? 'Tắt' : 'Bật'}</button>
-      <button data-del="${r.id}" class="small">Xoá</button>` }] : [])], rows);
-  $('#glossary-table').querySelectorAll('[data-toggle]').forEach((b) => b.addEventListener('click', async () => {
-    const t = rows.find((r) => r.id === +b.dataset.toggle);
-    await api(`/api/glossary/${t.id}`, { method: 'PUT', body: { term: t.term, definition: t.definition, is_active: !t.is_active } });
-    loadGlossary();
-  }));
-  $('#glossary-table').querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
-    if (!confirm('Xoá thuật ngữ này?')) return;
-    await api(`/api/glossary/${b.dataset.del}`, { method: 'DELETE' }); loadGlossary();
-  }));
-}
-$('#term-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  try { await api('/api/glossary', { method: 'POST', body: { term: f.get('term'), definition: f.get('definition') } }); e.target.reset(); loadGlossary(); }
-  catch (err) { alert(err.message); }
-});
 
 // ---------- Quản trị ----------
 async function loadAdmin() {

@@ -1,13 +1,13 @@
-19:32:20 
+18:37:59 
 ####################################################################################################
 DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder — evidence
 ####################################################################################################
-19:32:20 
+18:37:59 
 ====================================================================================================
 [ASK #1] BẮT ĐẦU — user=thuquy (role=board), mode=live
   câu hỏi gõ vào: ''
 ====================================================================================================
-19:32:20 
+18:37:59 
 ----- [ASK #1] Bước 0: service.ask -------------------------------------------------
   Làm gì : Điều phối toàn bộ luồng: lấy SQL → kiểm tra → chạy chỉ đọc → diễn giải → so đáp án → ghi nhật ký.
   Input  :
@@ -32,7 +32,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
     • evidence = None
         ↳ Evidence tự nhập (chỉ dùng khi không chọn câu mẫu)
   Output : '(xem các bước bên dưới)'
-19:32:20 
+18:37:59 
 ----- [ASK #1] Bước 1: đọc dev_question --------------------------------------------
   Làm gì : Đọc câu hỏi mẫu của BIRD dev; câu hỏi người dùng được thay bằng câu gốc.
   Input  :
@@ -46,7 +46,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
              "difficulty": "simple"
            }
         ↳ question, evidence (External Knowledge của BIRD), gold_sql (đáp án), difficulty
-19:32:20 
+18:37:59 
 ----- [ASK #1] Bước 2b.1: đọc model_config --------------------------------------------
   Làm gì : Lấy cấu hình model đang bật.
   Input  :
@@ -62,7 +62,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
              "is_active": 1
            }
         ↳ provider, model_tag (tên model), base_url (địa chỉ API), api_key_env (tên biến chứa khoá)
-19:32:20 
+18:37:59 
 ----- [ASK #1] Bước 2b.3: chọn knowledge ----------------------------------------------
   Làm gì : Lấy evidence đưa vào prompt, dùng NGUYÊN VĂN như benchmark gốc (không chuẩn hoá).
   Input  :
@@ -74,7 +74,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
         ↳ Evidence tự nhập (khi không chọn câu mẫu)
   Output : "meeting events refers to type = 'Meeting'; held in 2020 refers to YEAR(event_date) = 2020"
         ↳ evidence của câu dev (use_evidence = True) → dòng "-- External Knowledge:" trong prompt; None = không có
-19:32:20 
+18:37:59 
 ----- [ASK #1] Bước 2b.4a: prompt.schema_prompt ----------------------------------------
   Làm gì : Đọc các câu CREATE TABLE trong sqlite_master của student_club.sqlite, bỏ bảng/cột mà vai trò không được xem (BR03). Kết quả được cache theo vai trò.
   Input  :
@@ -186,7 +186,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
                foreign key (zip) references zip_code(zip_code)
            )
         ↳ Phần schema đặt ở đầu prompt (giống BIRD: các câu CREATE TABLE)
-19:32:20 
+18:37:59 
 ----- [ASK #1] Bước 2b.4b: prompt.comment_prompt ---------------------------------------
   Làm gì : Dựng phần comment cuối prompt giống generate_comment_prompt() của BIRD: có External Knowledge nếu có evidence, rồi câu hỏi.
   Input  :
@@ -198,7 +198,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
            -- External Knowledge: meeting events refers to type = 'Meeting'; held in 2020 refers to YEAR(event_date) = 2020
            -- Using valid SQLite and understading External Knowledge, answer the following questions for the tables provided above.
            -- How many meeting events were held in 2020?
-19:32:20 
+18:37:59 
 ----- [ASK #1] Bước 2b.4: prompt.build_prompt -----------------------------------------
   Làm gì : Ghép schema + "\n\n" + comment + câu kết thúc theo provider, đúng như script benchmark (openai → openai_request.py; ollama/groq → ollama_request.py).
   Input  :
@@ -318,7 +318,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
            -- How many meeting events were held in 2020?
            Respond with the final SQLite query only, inside a ```sql code block. Do not add any explanation.
         ↳ Prompt hoàn chỉnh gửi cho LLM
-19:32:29 
+18:38:26 
 ----- [ASK #1] Bước 2b.5a: llm.complete ------------------------------------------------
   Làm gì : Gọi LLM qua API tương thích OpenAI (cùng một client cho OpenAI, Groq, Ollama), nhận văn bản trả lời.
   Input  :
@@ -352,8 +352,8 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
            SELECT COUNT(event_id) FROM event WHERE type = 'Meeting' AND event_date LIKE '2020%'
            ```
         ↳ Văn bản thô model trả về (resp.choices[0].message.content)
-  Ghi chú: thời gian gọi 9181 ms; finish_reason=stop; usage: prompt_tokens=606, completion_tokens=28
-19:32:29 
+  Ghi chú: thời gian gọi 26393 ms; finish_reason=stop; usage: prompt_tokens=606, completion_tokens=28
+18:38:26 
 ----- [ASK #1] Bước 2b.5b: ollama_request.extract_sql ----------------------------------
   Làm gì : Tách câu SQL khỏi văn bản của model: bỏ <think>...</think>, lấy nội dung trong ```sql ... ```, cắt ở dấu ";" đầu tiên (cùng hàm với lúc benchmark Ollama).
   Input  :
@@ -364,7 +364,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
         ↳ Output của llm.complete ở bước trước
   Output : "SELECT COUNT(event_id) FROM event WHERE type = 'Meeting' AND event_date LIKE '2020%'"
         ↳ SQL model sinh ra; chuỗi rỗng = model không sinh được SQL
-19:32:29 
+18:38:26 
 ----- [ASK #1] Bước 3: guard.check_select ------------------------------------------
   Làm gì : Lớp kiểm tra 1 (trên chuỗi): đúng 1 câu lệnh, bắt đầu bằng SELECT/WITH, không phải lệnh ghi.
   Input  :
@@ -372,7 +372,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
         ↳ SQL lấy được ở bước 2
   Output : "SELECT COUNT(event_id) FROM event WHERE type = 'Meeting' AND event_date LIKE '2020%'"
         ↳ SQL đã làm sạch (bỏ khoảng trắng và dấu ";" cuối)
-19:32:29 
+18:38:26 
 ----- [ASK #1] Bước 4: guard.execute -----------------------------------------------
   Làm gì : Lớp kiểm tra 2: chạy SQL trên student_club.sqlite chỉ đọc, authorizer chặn bảng/cột bị cấm, có timeout.
   Input  :
@@ -395,16 +395,16 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
              ],
              "rows": "(xem dưới)"
            }
-  Ghi chú: thời gian chạy 1 ms
-19:32:29 
+  Ghi chú: thời gian chạy 2 ms
+18:38:26 
 ----- [ASK #1] Bước 4: guard.execute (rows) ----------------------------------------
   Làm gì : Các dòng kết quả thật
   Output : (1 dòng)
            (9,)
         ↳ list các tuple, mỗi tuple là một dòng
-19:32:29 
+18:38:26 
 ----- [ASK #1] Bước 5a: answer.llm_answer (dựng prompt) -----------------------------
-  Làm gì : Dựng prompt yêu cầu LLM trả lời 1–3 câu tiếng Việt, chỉ dựa vào tối đa 30 dòng đầu kết quả.
+  Làm gì : Dựng prompt yêu cầu LLM trả lời 1–3 câu tiếng Anh, chỉ dựa vào tối đa 30 dòng đầu kết quả.
   Input  :
     • question = 'How many meeting events were held in 2020?'
         ↳ Câu hỏi gốc
@@ -415,14 +415,14 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
     • rows = (1 dòng)
         (9,)
         ↳ Kết quả SQL đầy đủ; chỉ 30 dòng đầu được gửi đi
-  Output : (chuỗi 403 ký tự)
-           Bạn là trợ lý của một câu lạc bộ sinh viên. Dựa DUY NHẤT vào kết quả truy vấn bên dưới, hãy trả lời câu hỏi bằng tiếng Việt, ngắn gọn (1–3 câu), nêu rõ con số hoặc tên cụ thể. Không nhắc tới SQL, bảng hay cột. Không suy đoán ngoài dữ liệu. Nếu kết quả rỗng, nói là không có dữ liệu phù hợp.
+  Output : (chuỗi 418 ký tự)
+           You are an assistant for a student club. Based ONLY on the query result below, answer the question in English, briefly (1-3 sentences), stating the specific numbers or names. Do not mention SQL, tables or columns. Do not speculate beyond the data. If the result is empty, say that no matching data was found.
            
-           Câu hỏi: How many meeting events were held in 2020?
-           Tổng số dòng kết quả: 1
-           Kết quả: [{"COUNT(event_id)": "9"}]
+           Question: How many meeting events were held in 2020?
+           Total result rows: 1
+           Result: [{"COUNT(event_id)": "9"}]
         ↳ Prompt diễn giải gửi cho llm.complete (bước 5b)
-19:32:35 
+18:38:31 
 ----- [ASK #1] Bước 5b: llm.complete ------------------------------------------------
   Làm gì : Gọi LLM qua API tương thích OpenAI (cùng một client cho OpenAI, Groq, Ollama), nhận văn bản trả lời.
   Input  :
@@ -439,7 +439,7 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
     • messages = [
           {
             "role": "user",
-            "content": "<prompt 403 ký tự, xem bước trước>"
+            "content": "<prompt 418 ký tự, xem bước trước>"
           }
         ]
         ↳ Một tin nhắn user duy nhất chứa toàn bộ prompt
@@ -451,10 +451,10 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
         ↳ Gặp một trong các chuỗi này thì model dừng sinh (chuỗi dừng không nằm trong output); None = không dùng
     • timeout_s = 120
         ↳ Hết thời gian chờ (giây) thì báo lỗi LLMError
-  Output : 'Trong năm 2020, đã tổ chức 9 cuộc họp.'
+  Output : 'In 2020, 9 meeting events were held.'
         ↳ Văn bản thô model trả về (resp.choices[0].message.content)
-  Ghi chú: thời gian gọi 6601 ms; finish_reason=stop; usage: prompt_tokens=159, completion_tokens=18
-19:32:35 
+  Ghi chú: thời gian gọi 5371 ms; finish_reason=stop; usage: prompt_tokens=129, completion_tokens=15
+18:38:31 
 ----- [ASK #1] Bước 5: answer.make_answer ------------------------------------------
   Làm gì : Biến bảng kết quả thành câu trả lời cho người không biết SQL.
   Input  :
@@ -469,11 +469,11 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
     • model = 'qwen2.5-coder:7b'
         ↳ Model dùng để diễn giải; None (chế độ replay) → dựng câu theo mẫu
   Output : [
-             "Trong năm 2020, đã tổ chức 9 cuộc họp.",
+             "In 2020, 9 meeting events were held.",
              "llm"
            ]
         ↳ (câu trả lời, nguồn) — nguồn "llm"
-19:32:35 
+18:38:31 
 ----- [ASK #1] Bước 6a: guard.execute -----------------------------------------------
   Làm gì : Chạy SQL đáp án (gold) với quyền admin để có kết quả chuẩn.
   Input  :
@@ -497,13 +497,13 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
              "rows": "(xem dưới)"
            }
   Ghi chú: thời gian chạy 0 ms
-19:32:35 
+18:38:31 
 ----- [ASK #1] Bước 6a: guard.execute (rows) ----------------------------------------
   Làm gì : Các dòng kết quả thật
   Output : (1 dòng)
            (9,)
         ↳ list các tuple, mỗi tuple là một dòng
-19:32:35 
+18:38:31 
 ----- [ASK #1] Bước 6b: service.same_result -----------------------------------------
   Làm gì : So kết quả model với kết quả gold: set(rows) == set(gold_rows), cùng tiêu chí EX của BIRD (không quan tâm thứ tự, bỏ trùng).
   Input  :
@@ -513,18 +513,18 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
         ↳ Kết quả SQL đáp án (bước 6a)
   Output : 1
         ↳ is_correct: 1 = đúng, 0 = sai
-19:32:35 
+18:38:31 
 ----- [ASK #1] Bước 7: ghi query_log -----------------------------------------------
   Làm gì : Ghi nhật ký mọi câu hỏi, kể cả bị từ chối (BR04).
   Input  :
     • status = 'EXECUTED'
-    • latency_ms = 15796
+    • latency_ms = 31780
         ↳ Tổng thời gian xử lý
     • row_count = 1
     • is_correct = 1
   Output : 1
         ↳ id dòng vừa ghi trong bảng query_log
-19:32:35 
+18:38:31 
 ----- [ASK #1] Bước 8: service.ask (trả về) ----------------------------------------
   Làm gì : JSON trả về trình duyệt, renderResult() hiển thị.
   Output : {
@@ -535,18 +535,18 @@ DEMO TEXT-TO-SQL (ứng dụng ClubQuery) — câu 1379 — model Qwen2.5-Coder 
                "COUNT(event_id)"
              ],
              "truncated": false,
-             "answer": "Trong năm 2020, đã tổ chức 9 cuộc họp.",
+             "answer": "In 2020, 9 meeting events were held.",
              "answer_source": "llm",
              "error": null,
              "is_correct": 1,
              "gold_sql": "SELECT COUNT(event_id) FROM event WHERE type = 'Meeting' AND SUBSTR(event_date, 1, 4) = '2020'",
              "evidence_used": "meeting events refers to type = 'Meeting'; held in 2020 refers to YEAR(event_date) = 2020",
              "row_count": 1,
-             "latency_ms": 15796,
+             "latency_ms": 31780,
              "log_id": 1,
              "question": "How many meeting events were held in 2020?",
              "rows": "<1 dòng>"
            }
-19:32:35 
-[ASK #1] KẾT THÚC — status=EXECUTED, is_correct=1, latency_ms=15796, log_id=1
+18:38:31 
+[ASK #1] KẾT THÚC — status=EXECUTED, is_correct=1, latency_ms=31780, log_id=1
 ====================================================================================================

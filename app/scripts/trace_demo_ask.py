@@ -27,7 +27,7 @@ sys.path.insert(0, ROOT)
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--question_id', type=int, default=1379, help='câu mẫu BIRD dev của student_club (1312–1469)')
-    p.add_argument('--model', default='Qwen2.5-Coder', help='tên model trong bảng model_config')
+    p.add_argument('--model', default='Qwen2.5-Coder', help='tên model trong bảng model_config (mặc định như web demo)')
     p.add_argument('--user', default='thuquy', help='admin | thuquy (board) | thanhvien (member)')
     p.add_argument('--no_evidence', action='store_true', help='bỏ tick "Dùng evidence của câu mẫu"')
     args = p.parse_args()

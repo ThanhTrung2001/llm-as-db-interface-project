@@ -32,20 +32,20 @@ def template_answer(columns: list, rows: list) -> str:
 
 
 def llm_answer(model: dict, question: str, columns: list, rows: list) -> str:
-    sample = [dict(zip(columns, [_fmt(v) for v in r])) for r in rows[:MAX_ROWS_TO_LLM]]
+    sample = [dict(zip(columns, [None if v is None else _fmt(v) for v in r])) for r in rows[:MAX_ROWS_TO_LLM]]
     prompt = (
-        'Bạn là trợ lý của một câu lạc bộ sinh viên. Dựa DUY NHẤT vào kết quả truy vấn bên dưới, '
-        'hãy trả lời câu hỏi bằng tiếng Việt, ngắn gọn (1–3 câu), nêu rõ con số hoặc tên cụ thể. '
-        'Không nhắc tới SQL, bảng hay cột. Không suy đoán ngoài dữ liệu. '
-        'Nếu kết quả rỗng, nói là không có dữ liệu phù hợp.\n\n'
-        f'Câu hỏi: {question}\n'
-        f'Tổng số dòng kết quả: {len(rows)}'
-        f'{" (chỉ hiển thị " + str(MAX_ROWS_TO_LLM) + " dòng đầu)" if len(rows) > MAX_ROWS_TO_LLM else ""}\n'
-        f'Kết quả: {json.dumps(sample, ensure_ascii=False)}'
+        'You are an assistant for a student club. Based ONLY on the query result below, '
+        'answer the question in English, briefly (1-3 sentences), stating the specific numbers or names. '
+        'Do not mention SQL, tables or columns. Do not speculate beyond the data. '
+        'If the result is empty, say that no matching data was found.\n\n'
+        f'Question: {question}\n'
+        f'Total result rows: {len(rows)}'
+        f'{" (only the first " + str(MAX_ROWS_TO_LLM) + " are shown)" if len(rows) > MAX_ROWS_TO_LLM else ""}\n'
+        f'Result: {json.dumps(sample, ensure_ascii=False)}'
     )
     trace.step(
         '5a', 'answer.llm_answer (dựng prompt)',
-        f'Dựng prompt yêu cầu LLM trả lời 1–3 câu tiếng Việt, chỉ dựa vào tối đa {MAX_ROWS_TO_LLM} dòng đầu kết quả.',
+        f'Dựng prompt yêu cầu LLM trả lời 1–3 câu tiếng Anh, chỉ dựa vào tối đa {MAX_ROWS_TO_LLM} dòng đầu kết quả.',
         [('question', question, 'Câu hỏi gốc'),
          ('columns', columns, 'Tên cột của kết quả SQL'),
          ('rows', [tuple(r) for r in rows], f'Kết quả SQL đầy đủ; chỉ {MAX_ROWS_TO_LLM} dòng đầu được gửi đi')],

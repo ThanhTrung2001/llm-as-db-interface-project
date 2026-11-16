@@ -94,10 +94,13 @@ function go(tab) {
 function fillAskForm() {
   $('#run').innerHTML = state.runs.map((r) =>
     `<option value="${r.id}">${esc(r.model_name)} · ${esc(CONFIG_NAME[r.config])} — EX ${r.ex}%${r.note?.includes('tạm') ? ' (tạm thời)' : ''}</option>`).join('');
-  const def = state.runs.find((r) => r.model_name === 'GPT-3.5-Turbo' && r.config === 'evidence');
+  const DEFAULT_MODEL = 'Qwen2.5-Coder';  // model mặc định của demo (EX benchmark tốt nhất, chạy Ollama trên máy)
+  const def = state.runs.find((r) => r.model_name === DEFAULT_MODEL && r.config === 'evidence');
   if (def) $('#run').value = def.id;
   $('#model').innerHTML = state.models.filter((m) => m.is_active).map((m) =>
     `<option value="${m.id}">${esc(m.name)} (${esc(m.provider)})</option>`).join('');
+  const defModel = state.models.find((m) => m.is_active && m.name === DEFAULT_MODEL);
+  if (defModel) $('#model').value = defModel.id;
   $('#devq').innerHTML = '<option value="">— tự nhập câu hỏi —</option>' + state.devQuestions.map((q) =>
     `<option value="${q.id}">#${q.id} [${q.difficulty}] ${esc(q.question.slice(0, 110))}</option>`).join('');
   setMode('replay');

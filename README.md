@@ -144,21 +144,6 @@ Cần dữ liệu ở Bước 3, cùng các thư viện của script gọi model
   sh run/run_evaluation.sh
   ```
 - Gap 3 (chuẩn hoá evidence): xem [docs/gap3_runbook.md](docs/gap3_runbook.md).
-
-## Báo cáo và diagram
-
-- Dựng lại file Word từ Markdown:
-  ```powershell
-  .\venv\Scripts\python -m pip install pypandoc_binary python-docx
-  .\venv\Scripts\python docs\pttk\build_docx.py
-  ```
-  Sau đó mở `BAO_CAO.docx` bằng Word và cập nhật mục lục (chuột phải → Update Field).
-- Vẽ lại diagram (cần Java):
-  ```powershell
-  curl.exe -L -o tools\plantuml.jar https://repo1.maven.org/maven2/net/sourceforge/plantuml/plantuml/1.2024.7/plantuml-1.2024.7.jar
-  cd docs\pttk\diagrams; java -jar ..\..\..\tools\plantuml.jar -charset UTF-8 -tpng (Get-ChildItem [0-9]*.puml).Name
-  ```
-
 ## Nguồn
 
 Code trong `src/DAMO-ConvAI/bird/` lấy từ [AlibabaResearch/DAMO-ConvAI](https://github.com/AlibabaResearch/DAMO-ConvAI) (MIT License).

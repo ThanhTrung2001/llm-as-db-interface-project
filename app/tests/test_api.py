@@ -79,7 +79,7 @@ def test_member_finance_question_rejected_and_logged(member, conn):
     assert row['status'] == 'REJECTED_PERMISSION'  # BR04
 
 
-def test_live_uses_glossary_and_role_schema(member, monkeypatch):
+def test_live_role_schema(member, monkeypatch):
     seen = {}
 
     def fake_generate(model, prompt_text, timeout_s=120):
@@ -95,8 +95,7 @@ def test_live_uses_glossary_and_role_schema(member, monkeypatch):
     r = client.post('/api/ask', headers=member,
                     json={'mode': 'live', 'model_id': 1, 'question': 'How many meeting events are there?'}).json()
     assert r['status'] == 'EXECUTED' and r['rows'][0][0] > 0
-    assert [t['term'] for t in r['glossary_used']] == ['meeting']
-    assert "event.type = 'Meeting'" in seen['prompt']
+    assert 'External Knowledge' not in seen['prompt']  # không evidence, không còn từ điển nghiệp vụ
     assert 'expense' not in seen['prompt']  # thành viên không thấy bảng tài chính
     # UC02f: câu trả lời do model diễn giải, dựa trên đúng kết quả đã thực thi
     assert r['answer'] == 'Câu lạc bộ đã tổ chức 18 buổi họp.' and r['answer_source'] == 'llm'
@@ -162,19 +161,29 @@ def test_admin_logs_stats(admin):
     assert body['rows'] and {s['status'] for s in body['stats']} >= {'REJECTED_PERMISSION'}
 
 
-# ---- UC06, BR05 ----
+# ---- GPT-3.5-Turbo đi đúng luồng benchmark openai_request.py ----
 
-def test_glossary_crud_admin_only(admin, member):
-    assert client.post('/api/glossary', headers=member,
-                       json={'term': 'x', 'definition': 'y'}).status_code == 403
-    new_id = client.post('/api/glossary', headers=admin,
-                         json={'term': 'sự kiện mở', 'definition': "event.status = 'Open'"}).json()['id']
-    assert client.post('/api/glossary', headers=admin,
-                       json={'term': 'Sự kiện mở', 'definition': 'dup'}).status_code == 409
-    assert client.put(f'/api/glossary/{new_id}', headers=admin,
-                      json={'term': 'sự kiện mở', 'definition': "event.status = 'Open'",
-                            'is_active': False}).status_code == 200
-    assert client.delete(f'/api/glossary/{new_id}', headers=admin).status_code == 200
+def test_gpt35_live_matches_openai_request(admin, monkeypatch, conn):
+    import openai_request
+    from app.backend import config
+
+    seen = {}
+
+    def fake_complete(model, prompt_text, **kw):
+        if 'sql_kw' not in seen:  # lần gọi đầu: sinh SQL; lần sau: diễn giải câu trả lời
+            seen['sql_prompt'], seen['sql_kw'] = prompt_text, kw
+            return "COUNT(*) FROM event WHERE type = 'Meeting'"  # model viết tiếp sau "SELECT "
+        return 'ok'
+
+    monkeypatch.setattr(llm, 'complete', fake_complete)
+    q = conn.execute('SELECT * FROM dev_question WHERE id = 1379').fetchone()
+    r = client.post('/api/ask', headers=admin,
+                    json={'mode': 'live', 'model_id': 1, 'dev_question_id': 1379}).json()
+    expected = openai_request.generate_combined_prompts_one(config.SOURCE_DB, q['question'], q['evidence'])
+    assert seen['sql_prompt'] == expected  # prompt giống hệt lúc benchmark (evidence nguyên văn)
+    assert seen['sql_kw']['max_tokens'] == 256 and seen['sql_kw']['stop'] == ['--', '\n\n', ';', '#']
+    assert r['sql'] == "SELECT COUNT(*) FROM event WHERE type = 'Meeting'"  # openai_request.extract_sql
+    assert r['status'] == 'EXECUTED'
 
 
 # ---- UC07, UC08, UC09, UC11 ----

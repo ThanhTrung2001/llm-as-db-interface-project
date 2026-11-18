@@ -1,0 +1,46 @@
+﻿model,config,source,group,category,category_name,n,correct,ex
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,tag,SINGLE_TABLE,1.Đơn bảng,362,139,38.4
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,tag,JOIN,2.Join,1139,361,31.69
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,tag,SET_OP,3.SetOp,3,0,0.0
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,tag,OUTER_JOIN,4.Outer,1,0,0.0
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,tag,GROUP_BY,5.GroupBy,120,29,24.17
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,tag,DIVISION,6.Chia,0,0,
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,tag,NESTED,(Lồng),124,31,25.0
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,level,0,Khác (nhiều bảng qua truy vấn lồng),32,11,34.38
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,level,1,1. Dễ - 1 bảng,340,129,37.94
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,level,2,2. Kết bảng (inner join),1040,342,32.88
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,level,3,3. Union / Intersect / Except,1,0,0.0
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,level,4,4. Kết ngoài (outer join),1,0,0.0
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,level,5,5. Group by,120,29,24.17
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,level,6,6. Phép chia,0,0,
+Qwen2.5-Coder,no_evidence,ollama_gwen25_0_output,total,ALL,Tổng,1534,511,33.31
+Qwen2.5-Coder,evidence,ollama_gwen25_output,tag,SINGLE_TABLE,1.Đơn bảng,362,229,63.26
+Qwen2.5-Coder,evidence,ollama_gwen25_output,tag,JOIN,2.Join,1139,582,51.1
+Qwen2.5-Coder,evidence,ollama_gwen25_output,tag,SET_OP,3.SetOp,3,1,33.33
+Qwen2.5-Coder,evidence,ollama_gwen25_output,tag,OUTER_JOIN,4.Outer,1,0,0.0
+Qwen2.5-Coder,evidence,ollama_gwen25_output,tag,GROUP_BY,5.GroupBy,120,47,39.17
+Qwen2.5-Coder,evidence,ollama_gwen25_output,tag,DIVISION,6.Chia,0,0,
+Qwen2.5-Coder,evidence,ollama_gwen25_output,tag,NESTED,(Lồng),124,48,38.71
+Qwen2.5-Coder,evidence,ollama_gwen25_output,level,0,Khác (nhiều bảng qua truy vấn lồng),32,14,43.75
+Qwen2.5-Coder,evidence,ollama_gwen25_output,level,1,1. Dễ - 1 bảng,340,216,63.53
+Qwen2.5-Coder,evidence,ollama_gwen25_output,level,2,2. Kết bảng (inner join),1040,548,52.69
+Qwen2.5-Coder,evidence,ollama_gwen25_output,level,3,3. Union / Intersect / Except,1,0,0.0
+Qwen2.5-Coder,evidence,ollama_gwen25_output,level,4,4. Kết ngoài (outer join),1,0,0.0
+Qwen2.5-Coder,evidence,ollama_gwen25_output,level,5,5. Group by,120,47,39.17
+Qwen2.5-Coder,evidence,ollama_gwen25_output,level,6,6. Phép chia,0,0,
+Qwen2.5-Coder,evidence,ollama_gwen25_output,total,ALL,Tổng,1534,825,53.78
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,tag,SINGLE_TABLE,1.Đơn bảng,362,230,63.54
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,tag,JOIN,2.Join,1139,586,51.45
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,tag,SET_OP,3.SetOp,3,1,33.33
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,tag,OUTER_JOIN,4.Outer,1,0,0.0
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,tag,GROUP_BY,5.GroupBy,120,47,39.17
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,tag,DIVISION,6.Chia,0,0,
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,tag,NESTED,(Lồng),124,49,39.52
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,level,0,Khác (nhiều bảng qua truy vấn lồng),32,15,46.88
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,level,1,1. Dễ - 1 bảng,340,217,63.82
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,level,2,2. Kết bảng (inner join),1040,552,53.08
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,level,3,3. Union / Intersect / Except,1,0,0.0
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,level,4,4. Kết ngoài (outer join),1,0,0.0
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,level,5,5. Group by,120,47,39.17
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,level,6,6. Phép chia,0,0,
+Qwen2.5-Coder,evidence_norm,gap3/qwen25_kg_norm_v2,total,ALL,Tổng,1534,831,54.17

@@ -26,14 +26,6 @@ CREATE TABLE IF NOT EXISTS model_config (
     api_key_env TEXT,
     is_active   INTEGER NOT NULL DEFAULT 1
 );
-CREATE TABLE IF NOT EXISTS glossary_term (
-    id         INTEGER PRIMARY KEY,
-    term       TEXT NOT NULL UNIQUE COLLATE NOCASE,
-    definition TEXT NOT NULL,
-    is_active  INTEGER NOT NULL DEFAULT 1,
-    updated_by INTEGER REFERENCES user_account(id),
-    updated_at TEXT NOT NULL
-);
 CREATE TABLE IF NOT EXISTS dev_question (
     id         INTEGER PRIMARY KEY,          -- chỉ số câu hỏi trong dev.json
     question   TEXT NOT NULL,
@@ -68,7 +60,6 @@ CREATE TABLE IF NOT EXISTS query_log (
     run_id          INTEGER REFERENCES benchmark_run(id),
     dev_question_id INTEGER REFERENCES dev_question(id),
     evidence_used   TEXT,
-    glossary_used   TEXT,
     generated_sql   TEXT,
     answer          TEXT,                    -- câu trả lời đã diễn giải (UC02f)
     status          TEXT NOT NULL,
@@ -101,14 +92,6 @@ SEED_MODELS = [
     ('Gemma3', 'ollama', 'gemma3:12b', OLLAMA_V1, None),
     ('Qwen2.5-Coder', 'ollama', 'qwen2.5-coder:7b', OLLAMA_V1, None),
     ('GPT-OSS-20B (Groq)', 'groq', 'openai/gpt-oss-20b', 'https://api.groq.com/openai/v1', 'GROQ_API_KEY'),
-]
-SEED_GLOSSARY = [
-    ('buổi họp', "event.type = 'Meeting'"),
-    ('meeting', "event.type = 'Meeting'"),
-    ('thủ quỹ', "member.position = 'Treasurer'"),
-    ('đã duyệt', "expense.approved = 'true'"),
-    ('approved', "expense.approved = 'true'"),
-    ('năm 2020', "SUBSTR(event_date, 1, 4) = '2020'"),
 ]
 # EX toàn dev đã đo (PROJECT_LOG.md mục 8, 8.1). Bỏ trống khi chưa có số chốt.
 FULL_DEV_EX = {
@@ -184,9 +167,6 @@ def init_db(reset: bool = False) -> None:
             conn.executemany(
                 'INSERT INTO model_config (name, provider, model_tag, base_url, api_key_env) VALUES (?,?,?,?,?)',
                 SEED_MODELS)
-            conn.executemany(
-                'INSERT INTO glossary_term (term, definition, updated_at) VALUES (?,?,?)',
-                [(t, d, now()) for t, d in SEED_GLOSSARY])
             conn.commit()
             if os.path.exists(config.BENCHMARK_JSON):
                 with open(config.BENCHMARK_JSON, encoding='utf-8') as f:

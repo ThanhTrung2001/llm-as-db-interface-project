@@ -93,7 +93,6 @@ class AskIn(BaseModel):
     dev_question_id: Optional[int] = None
     use_evidence: bool = True
     evidence: Optional[str] = None
-    use_glossary: bool = True
 
 
 @app.post('/api/ask')
@@ -102,7 +101,7 @@ def ask(body: AskIn, user=Depends(current_user), conn=Depends(db)):
         raise HTTPException(422, 'Hãy nhập câu hỏi hoặc chọn câu hỏi mẫu')
     try:
         return service.ask(conn, user, body.question or '', body.mode, body.model_id, body.run_id,
-                           body.dev_question_id, body.use_evidence, body.evidence, body.use_glossary)
+                           body.dev_question_id, body.use_evidence, body.evidence)
     except ValueError as e:
         raise HTTPException(422, str(e))
 
@@ -175,49 +174,6 @@ def export_csv(log_id: int, user=Depends(require('board', 'admin')), conn=Depend
     w.writerows(rows)
     return StreamingResponse(iter(['﻿' + buf.getvalue()]), media_type='text/csv',
                              headers={'Content-Disposition': f'attachment; filename=clubquery_{log_id}.csv'})
-
-# ---------- UC06 Từ điển nghiệp vụ ----------
-
-
-class TermIn(BaseModel):
-    term: str = Field(..., min_length=1)
-    definition: str = Field(..., min_length=1)
-    is_active: bool = True
-
-
-@app.get('/api/glossary')
-def glossary(user=Depends(current_user), conn=Depends(db)):
-    return [dict(r) for r in conn.execute('SELECT * FROM glossary_term ORDER BY term')]
-
-
-@app.post('/api/glossary')
-def add_term(body: TermIn, user=Depends(admin_only), conn=Depends(db)):
-    try:
-        new_id = conn.execute('INSERT INTO glossary_term (term, definition, is_active, updated_by, updated_at) '
-                              'VALUES (?,?,?,?,?)', (body.term.strip(), body.definition.strip(),
-                                                     int(body.is_active), user['id'], appdb.now())).lastrowid
-    except Exception:
-        raise HTTPException(409, 'Thuật ngữ đã tồn tại')
-    conn.commit()
-    return {'id': new_id}
-
-
-@app.put('/api/glossary/{term_id}')
-def update_term(term_id: int, body: TermIn, user=Depends(admin_only), conn=Depends(db)):
-    cur = conn.execute('UPDATE glossary_term SET term = ?, definition = ?, is_active = ?, updated_by = ?, '
-                       'updated_at = ? WHERE id = ?', (body.term.strip(), body.definition.strip(),
-                                                      int(body.is_active), user['id'], appdb.now(), term_id))
-    conn.commit()
-    if cur.rowcount == 0:
-        raise HTTPException(404, 'Không có thuật ngữ này')
-    return {'ok': True}
-
-
-@app.delete('/api/glossary/{term_id}')
-def delete_term(term_id: int, user=Depends(admin_only), conn=Depends(db)):
-    conn.execute('DELETE FROM glossary_term WHERE id = ?', (term_id,))
-    conn.commit()
-    return {'ok': True}
 
 # ---------- UC07 Cấu hình model ----------
 

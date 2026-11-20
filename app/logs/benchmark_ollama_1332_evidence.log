@@ -1,0 +1,398 @@
+22:45:54 
+====================================================================================================
+[OLLAMA #1332] LUỒNG BENCHMARK OLLAMA — qwen2.5-coder:7b-instruct — cấu hình evidence
+====================================================================================================
+22:45:54 
+----- [OLLAMA #1332] Bước 0: ollama_request.py (argparse) --------------------------------
+  Làm gì : Tham số dòng lệnh của lượt benchmark. Bản gốc chạy cả 1534 câu; ở đây chỉ chạy 1 câu.
+  Input  :
+    • --model = 'qwen2.5-coder:7b-instruct'
+        ↳ Tên model đã pull về Ollama (tag)
+    • --eval_path = 'D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev.json'
+        ↳ File câu hỏi BIRD dev (1534 câu: question, evidence, SQL gold, db_id)
+    • --db_root_path = 'D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev_databases\\'
+        ↳ Thư mục chứa các CSDL <db_id>/<db_id>.sqlite
+    • --no_knowledge = False
+        ↳ True → knowledge_list = [None] * n (như openai_request.py), lượt "no_evidence"
+    • question_id = 1332
+        ↳ Chỉ số câu trong dev.json (= key trong predict_dev.json)
+  Output : 'cấu hình = evidence'
+22:45:54 
+----- [OLLAMA #1332] Bước 1: json.load(dev.json)[question_id] ----------------------------
+  Làm gì : Đọc toàn bộ bộ dev rồi lấy câu cần chạy.
+  Input  :
+    • eval_path = 'D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev.json'
+    • question_id = 1332
+  Output : {
+             "question_id": 1332,
+             "db_id": "student_club",
+             "question": "How much did the Student_Club members spend on food in September Meeting?",
+             "evidence": "amount spent refers to spent; spend on food in September Meeting refers to category = 'Food' where event_name = 'September Meeting'",
+             "SQL": "SELECT T2.spent FROM event AS T1 INNER JOIN budget AS T2 ON T1.event_id = T2.link_to_event WHERE T1.event_name = 'September Meeting' AND T2.category = 'Food' AND SUBSTR(T1.event_date, 6, 2) = '09'",
+             "difficulty": "moderate"
+           }
+        ↳ 1 phần tử trong 1534 câu: db_id, question, evidence (External Knowledge), SQL (gold), difficulty
+22:45:54 
+----- [OLLAMA #1332] Bước 2: ollama_request.decouple_question_schema ---------------------
+  Làm gì : Tách từ mỗi câu dev ra 3 danh sách song song: câu hỏi, đường dẫn file .sqlite, evidence.
+  Input  :
+    • datasets = '[item ở bước 1]'
+        ↳ Danh sách câu dev (ở đây 1 câu)
+    • db_root_path = 'D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev_databases\\'
+        ↳ Ghép thành <db_root_path>/<db_id>/<db_id>.sqlite
+  Output : {
+             "question_list": [
+               "How much did the Student_Club members spend on food in September Meeting?"
+             ],
+             "db_path_list": [
+               "D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev_databases\\student_club\\student_club.sqlite"
+             ],
+             "knowledge_list": [
+               "amount spent refers to spent; spend on food in September Meeting refers to category = 'Food' where event_name = 'September Meeting'"
+             ]
+           }
+22:45:54 
+----- [OLLAMA #1332] Bước 3: knowledge = knowledge_list[i] -------------------------------
+  Làm gì : Dùng NGUYÊN VĂN evidence của BIRD (benchmark gốc không chuẩn hoá).
+  Input  :
+    • knowledge_list = [
+          "amount spent refers to spent; spend on food in September Meeting refers to category = 'Food' where event_name = 'September Meeting'"
+        ]
+        ↳ Output bước 2
+  Output : "amount spent refers to spent; spend on food in September Meeting refers to category = 'Food' where event_name = 'September Meeting'"
+22:45:54 
+----- [OLLAMA #1332] Bước 4.1: ollama_request.generate_schema_prompt -----------------------
+  Làm gì : Mở file .sqlite, lấy câu CREATE TABLE của mọi bảng (trừ sqlite_sequence) trong sqlite_master, nối bằng "\n\n".
+  Input  :
+    • db_path = 'D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev_databases\\student_club\\student_club.sqlite'
+        ↳ CSDL của câu hỏi
+  Output : (chuỗi 2221 ký tự)
+           CREATE TABLE event
+           (
+               event_id   TEXT
+                   constraint event_pk
+                       primary key,
+               event_name TEXT,
+               event_date TEXT,
+               type       TEXT,
+               notes      TEXT,
+               location   TEXT,
+               status     TEXT
+           )
+           
+           CREATE TABLE major
+           (
+               major_id   TEXT
+                   constraint major_pk
+                       primary key,
+               major_name TEXT,
+               department TEXT,
+               college    TEXT
+           )
+           
+           CREATE TABLE zip_code
+           (
+               zip_code    INTEGER
+                   constraint zip_code_pk
+                       primary key,
+               type        TEXT,
+               city        TEXT,
+               county      TEXT,
+               state       TEXT,
+               short_state TEXT
+           )
+           
+           CREATE TABLE "attendance"
+           (
+               link_to_event  TEXT,
+               link_to_member TEXT,
+               primary key (link_to_event, link_to_member),
+               foreign key (link_to_event) references event(event_id),
+               foreign key (link_to_member) references member(member_id)
+           )
+           
+           CREATE TABLE "budget"
+           (
+               budget_id     TEXT
+                       primary key,
+               category      TEXT,
+               spent         REAL,
+               remaining     REAL,
+               amount        INTEGER,
+               event_status  TEXT,
+               link_to_event TEXT,
+               foreign key (link_to_event) references event(event_id)
+           )
+           
+           CREATE TABLE "expense"
+           (
+               expense_id          TEXT
+                       primary key,
+               expense_description TEXT,
+               expense_date        TEXT,
+               cost                REAL,
+               approved            TEXT,
+               link_to_member      TEXT,
+               link_to_budget      TEXT,
+               foreign key (link_to_budget) references budget(budget_id),
+               foreign key (link_to_member) references member(member_id)
+           )
+           
+           CREATE TABLE "income"
+           (
+               income_id      TEXT
+                   constraint income_pk
+                       primary key,
+               date_received  TEXT,
+               amount         INTEGER,
+               source         TEXT,
+               notes          TEXT,
+               link_to_member TEXT,
+               foreign key (link_to_member) references member(member_id)
+           )
+           
+           CREATE TABLE "member"
+           (
+               member_id     TEXT
+                   constraint member_pk
+                       primary key,
+               first_name    TEXT,
+               last_name     TEXT,
+               email         TEXT,
+               position      TEXT,
+               t_shirt_size  TEXT,
+               phone         TEXT,
+               zip           INTEGER,
+               link_to_major TEXT,
+               foreign key (link_to_major) references major(major_id),
+               foreign key (zip) references zip_code(zip_code)
+           )
+        ↳ Phần schema ở đầu prompt
+22:45:54 
+----- [OLLAMA #1332] Bước 4.2: ollama_request.generate_comment_prompt ----------------------
+  Làm gì : Dựng phần comment: "-- External Knowledge: ..." (nếu có) + câu hướng dẫn + "-- <câu hỏi>".
+  Input  :
+    • question = 'How much did the Student_Club members spend on food in September Meeting?'
+        ↳ Câu hỏi tiếng Anh
+    • knowledge = "amount spent refers to spent; spend on food in September Meeting refers to category = 'Food' where event_name = 'September Meeting'"
+        ↳ None/rỗng → câu "-- Using valid SQLite, answer ..." (không có External Knowledge)
+  Output : (chuỗi 352 ký tự)
+           -- External Knowledge: amount spent refers to spent; spend on food in September Meeting refers to category = 'Food' where event_name = 'September Meeting'
+           -- Using valid SQLite and understading External Knowledge, answer the following questions for the tables provided above.
+           -- How much did the Student_Club members spend on food in September Meeting?
+22:45:54 
+----- [OLLAMA #1332] Bước 4.3: ollama_request.generate_combined_prompts_one ----------------
+  Làm gì : Ghép schema + "\n\n" + comment + "\nRespond with the final SQLite query only, inside a ```sql code block. Do not add any explanation." (model chat cần yêu cầu rõ định dạng trả về).
+  Input  :
+    • db_path = 'D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev_databases\\student_club\\student_club.sqlite'
+        ↳ Gọi lại generate_schema_prompt bên trong
+    • question = 'How much did the Student_Club members spend on food in September Meeting?'
+    • knowledge = "amount spent refers to spent; spend on food in September Meeting refers to category = 'Food' where event_name = 'September Meeting'"
+  Output : (chuỗi 2673 ký tự)
+           CREATE TABLE event
+           (
+               event_id   TEXT
+                   constraint event_pk
+                       primary key,
+               event_name TEXT,
+               event_date TEXT,
+               type       TEXT,
+               notes      TEXT,
+               location   TEXT,
+               status     TEXT
+           )
+           
+           CREATE TABLE major
+           (
+               major_id   TEXT
+                   constraint major_pk
+                       primary key,
+               major_name TEXT,
+               department TEXT,
+               college    TEXT
+           )
+           
+           CREATE TABLE zip_code
+           (
+               zip_code    INTEGER
+                   constraint zip_code_pk
+                       primary key,
+               type        TEXT,
+               city        TEXT,
+               county      TEXT,
+               state       TEXT,
+               short_state TEXT
+           )
+           
+           CREATE TABLE "attendance"
+           (
+               link_to_event  TEXT,
+               link_to_member TEXT,
+               primary key (link_to_event, link_to_member),
+               foreign key (link_to_event) references event(event_id),
+               foreign key (link_to_member) references member(member_id)
+           )
+           
+           CREATE TABLE "budget"
+           (
+               budget_id     TEXT
+                       primary key,
+               category      TEXT,
+               spent         REAL,
+               remaining     REAL,
+               amount        INTEGER,
+               event_status  TEXT,
+               link_to_event TEXT,
+               foreign key (link_to_event) references event(event_id)
+           )
+           
+           CREATE TABLE "expense"
+           (
+               expense_id          TEXT
+                       primary key,
+               expense_description TEXT,
+               expense_date        TEXT,
+               cost                REAL,
+               approved            TEXT,
+               link_to_member      TEXT,
+               link_to_budget      TEXT,
+               foreign key (link_to_budget) references budget(budget_id),
+               foreign key (link_to_member) references member(member_id)
+           )
+           
+           CREATE TABLE "income"
+           (
+               income_id      TEXT
+                   constraint income_pk
+                       primary key,
+               date_received  TEXT,
+               amount         INTEGER,
+               source         TEXT,
+               notes          TEXT,
+               link_to_member TEXT,
+               foreign key (link_to_member) references member(member_id)
+           )
+           
+           CREATE TABLE "member"
+           (
+               member_id     TEXT
+                   constraint member_pk
+                       primary key,
+               first_name    TEXT,
+               last_name     TEXT,
+               email         TEXT,
+               position      TEXT,
+               t_shirt_size  TEXT,
+               phone         TEXT,
+               zip           INTEGER,
+               link_to_major TEXT,
+               foreign key (link_to_major) references major(major_id),
+               foreign key (zip) references zip_code(zip_code)
+           )
+           
+           -- External Knowledge: amount spent refers to spent; spend on food in September Meeting refers to category = 'Food' where event_name = 'September Meeting'
+           -- Using valid SQLite and understading External Knowledge, answer the following questions for the tables provided above.
+           -- How much did the Student_Club members spend on food in September Meeting?
+           Respond with the final SQLite query only, inside a ```sql code block. Do not add any explanation.
+        ↳ Prompt hoàn chỉnh gửi cho model
+22:46:24 
+----- [OLLAMA #1332] Bước 5: ollama_request.call_ollama ----------------------------------
+  Làm gì : Gọi Ollama /api/chat trên máy (không cần khoá API).
+  Input  :
+    • model = 'qwen2.5-coder:7b-instruct'
+        ↳ Tag model trong Ollama
+    • prompt = '<2673 ký tự đã build ở bước trước>'
+        ↳ Gửi làm 1 tin nhắn role="user"
+    • max_retries = 3
+        ↳ Lỗi (mạng, server chưa sẵn sàng...) thì chờ 3 giây rồi thử lại, tối đa 3 lần
+    • timeout = 120
+        ↳ Chờ tối đa 120 giây cho mỗi lần gọi
+    • → request thật gửi đi = {
+          "model": "qwen2.5-coder:7b-instruct",
+          "messages": [
+            {
+              "role": "user",
+              "content": "<prompt 2673 ký tự đã build ở bước trước>"
+            }
+          ],
+          "stream": false,
+          "options": {
+            "temperature": 0
+          }
+        }
+        ↳ POST http://localhost:11434/api/chat. stream=False: nhận cả câu trả lời một lần; options.temperature=0: luôn chọn token chắc nhất, chạy lại ra cùng kết quả. Không giới hạn số token, không có chuỗi dừng (khác call_openai)
+  Output : (chuỗi 174 ký tự)
+           ```sql
+           SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food';
+           ```
+        ↳ resp.json()["message"]["content"] — văn bản thô model trả về
+  Ghi chú: HTTP 200; model=qwen2.5-coder:7b-instruct; done_reason=stop; prompt_eval_count=606 token prompt, eval_count=52 token sinh ra; load_duration=13.12s (nạp model vào RAM/VRAM), total_duration=28.15s; tổng 30167 ms
+22:46:24 
+----- [OLLAMA #1332] Bước 6: ollama_request.extract_sql ----------------------------------
+  Làm gì : Bỏ <think>...</think> (nếu model có suy luận), lấy nội dung trong ```sql ... ``` (không có dấu đóng thì bỏ dấu mở), cắt ở ";" đầu tiên, bỏ khoảng trắng. Rỗng → "SELECT".
+  Input  :
+    • raw_text = (chuỗi 174 ký tự)
+        ```sql
+        SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food';
+        ```
+        ↳ Output bước 5
+  Output : "SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food'"
+        ↳ Câu SQL dự đoán
+22:46:24 
+----- [OLLAMA #1332] Bước 7: collect_response → save_predictions -------------------------
+  Làm gì : Ghép SQL với db_id theo định dạng BIRD rồi ghi vào exp_result/.../predict_dev.json.
+  Input  :
+    • sql = "SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food'"
+        ↳ Bước 6 (hoặc "SELECT" nếu gọi model lỗi)
+    • db_id = 'student_club'
+        ↳ Lấy từ câu dev
+  Output : {
+             "1332": "SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food'\t----- bird -----\tstudent_club"
+           }
+        ↳ 1 mục trong predict_dev.json: key = chỉ số câu gốc trong dev.json
+22:46:24 
+----- [OLLAMA #1332] Bước 8: evaluation.package_sqls -------------------------------------
+  Làm gì : evaluation.py đọc predict_dev.json, tách "sql\t----- bird -----\tdb_id" thành SQL và đường dẫn CSDL; đọc SQL gold từ dev_gold.sql theo cùng thứ tự.
+  Input  :
+    • sql_str = "SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food'\t----- bird -----\tstudent_club"
+        ↳ Giá trị trong predict_dev.json
+    • db_root_path = 'D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev_databases\\'
+  Output : {
+             "predicted_sql": "SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food'",
+             "ground_truth": "SELECT T2.spent FROM event AS T1 INNER JOIN budget AS T2 ON T1.event_id = T2.link_to_event WHERE T1.event_name = 'September Meeting' AND T2.category = 'Food' AND SUBSTR(T1.event_date, 6, 2) = '09'",
+             "db_place": "D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev_databases\\student_club/student_club.sqlite"
+           }
+22:46:24 
+----- [OLLAMA #1332] Bước 9a: cursor.execute(predicted_sql).fetchall() --------------------
+  Làm gì : Kết quả chạy SQL dự đoán (để xem; bước 9c chấm).
+  Input  :
+    • predicted_sql = "SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food'"
+  Output : (1 dòng)
+           (101.94,)
+22:46:24 
+----- [OLLAMA #1332] Bước 9b: cursor.execute(ground_truth).fetchall() ---------------------
+  Làm gì : Kết quả chạy SQL gold.
+  Input  :
+    • ground_truth = "SELECT T2.spent FROM event AS T1 INNER JOIN budget AS T2 ON T1.event_id = T2.link_to_event WHERE T1.event_name = 'September Meeting' AND T2.category = 'Food' AND SUBSTR(T1.event_date, 6, 2) = '09'"
+  Output : (1 dòng)
+           (101.94,)
+22:46:24 
+----- [OLLAMA #1332] Bước 9c: evaluation.execute_model → execute_sql ----------------------
+  Làm gì : Chạy cả 2 câu SQL trên cùng CSDL, so set(predicted_res) == set(ground_truth_res) (không quan tâm thứ tự dòng, bỏ trùng). Quá thời gian hoặc lỗi SQL → 0.
+  Input  :
+    • predicted_sql = "SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food'"
+    • ground_truth = "SELECT T2.spent FROM event AS T1 INNER JOIN budget AS T2 ON T1.event_id = T2.link_to_event WHERE T1.event_name = 'September Meeting' AND T2.category = 'Food' AND SUBSTR(T1.event_date, 6, 2) = '09'"
+    • db_place = 'D:\\AI Learning\\Paper\\LLM\\src\\DAMO-ConvAI\\bird\\data\\dev_databases\\student_club/student_club.sqlite'
+    • idx = 1332
+        ↳ Chỉ số câu, để sắp xếp lại kết quả khi chạy song song
+    • meta_time_out = 30.0
+        ↳ Giới hạn thời gian (giây) cho mỗi cặp câu (func_timeout)
+  Output : {
+             "sql_idx": 1332,
+             "res": 1
+           }
+        ↳ res = 1 → đúng (tính vào EX), res = 0 → sai
+22:46:24 
+[OLLAMA #1332] KẾT THÚC — SQL: SELECT SUM(T1.spent) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T2.event_name = 'September Meeting' AND T1.category = 'Food' — EX res=1
+Log đã ghi vào D:\AI Learning\Paper\LLM\app\logs\benchmark_ollama_1332_evidence.log
+====================================================================================================

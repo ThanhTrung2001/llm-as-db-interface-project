@@ -13,16 +13,31 @@ app/                           # ClubQuery
                                #   guard.py (chỉ SELECT, authorizer theo vai trò, timeout), prompt.py,
                                #   llm.py, answer.py (diễn giải câu trả lời), appdb.py (app.sqlite)
   frontend/                    #   index.html, app.js, style.css
-  scripts/per_db_ex.py         #   chấm EX theo CSDL bằng evaluation.py gốc -> dữ liệu phát lại
+  scripts/
+    per_db_ex.py               #   chấm EX theo CSDL bằng evaluation.py gốc -> dữ liệu phát lại
+    sql_category.py            #   phân loại SQL vào 6 mức (1 bảng, join, set-op, outer join, group by, phép chia)
+    ex_by_category.py          #   EX theo 6 mức
+    ex_ves_by_category.py      #   EX + VES theo 6 mức (local hoặc Kaggle)
+    trace_benchmark_ollama.py  #   log từng bước luồng benchmark cho 1 câu (Ollama)
+    trace_benchmark_gpt35.py   #   như trên, với GPT-3.5-Turbo
+    trace_demo_ask.py          #   log từng bước luồng hỏi đáp của app cho 1 câu
+  logs/                        #   log do các script trace ghi ra
   tests/                       #   pytest
-docs/pttk/                     # báo cáo, diagram PlantUML (.puml + .png), ảnh màn hình
+docs/
+  FLOW_*.md                    #   giải thích luồng benchmark, sinh SQL, chấm EX/VES
+  KICH_BAN_DEMO_*.md           #   kịch bản demo
+  ex_ves_by_category_kaggle.md #   hướng dẫn chấm theo 6 mức trên Kaggle
+  gap3_runbook.md              #   hướng dẫn thí nghiệm Gap 3
+  pttk/                        #   báo cáo, diagram PlantUML (.puml + .png), ảnh màn hình
 src/DAMO-ConvAI/bird/          # phần BIRD lấy từ AlibabaResearch/DAMO-ConvAI (MIT License)
   data/                        #   KHÔNG có trong repo — tự tải, xem Bước 3
   llm/data/dev_gold.sql        #   KHÔNG có trong repo
   llm/src/                     #   script gọi model (openai/groq/ollama/gemini_request.py), evaluation.py (EX),
                                #   evaluation_ves.py (VES), evidence_norm.py (Gap 3)
+  llm/run/                     #   script chạy hàng loạt (run_ollama_eval.ps1, *.sh của bản gốc)
   llm/exp_result/              #   SQL do các model sinh (predict_dev.json) — đã có sẵn trong repo
 *.ipynb                        # notebook chạy benchmark / chấm điểm (local và Kaggle)
+bird-*.zip                     # gói kết quả để upload làm dataset Kaggle
 ```
 
 > **Bộ dữ liệu BIRD (CSDL, `dev.json`, SQL đáp án) không có trong repo.** Dữ liệu theo giấy phép CC BY-SA 4.0 của nhóm tác giả BIRD — tự tải theo Bước 3.
@@ -79,7 +94,12 @@ OPEN_AI_KEY=sk-...      # model GPT-3.5-Turbo
 GROQ_API_KEY=...        # tuỳ chọn, model GPT-OSS-20B (Groq)
 ```
 
-Chế độ **phát lại** không cần khoá và không cần mạng.
+Chế độ **phát lại** không cần khoá và không cần mạng. Các model chạy qua Ollama (Qwen2.5-Coder, DeepSeek-Coder-V2, Gemma3) cũng không cần khoá, chỉ cần Ollama chạy trên máy:
+
+```powershell
+ollama serve                          # nếu Ollama chưa tự chạy
+ollama pull qwen2.5-coder:7b          # model app dùng; tuỳ chọn thêm deepseek-coder-v2:16b, gemma3:12b
+```
 
 ### Bước 5 — Chấm điểm và tạo dữ liệu phát lại
 
@@ -115,9 +135,31 @@ Mở http://127.0.0.1:8000. Lần chạy đầu, app tự tạo `app\data\app.sq
 Hai chế độ hỏi đáp:
 
 - **Phát lại benchmark:** chọn lượt benchmark và câu hỏi mẫu, bấm **Hỏi**. Dùng SQL model đã sinh lúc benchmark, kèm đáp án chuẩn và nhãn đúng/sai.
-- **Hỏi trực tiếp:** chọn model GPT-3.5-Turbo, gõ câu hỏi (tiếng Anh cho kết quả ổn định nhất), bấm **Hỏi**. Model sinh SQL; hệ thống kiểm tra rồi chạy SQL trên `student_club.sqlite` ở chế độ chỉ đọc; model diễn giải kết quả thành câu tiếng Việt.
+- **Hỏi trực tiếp:** chọn model (Qwen2.5-Coder hoặc model Ollama khác chạy trên máy; GPT-3.5-Turbo / GPT-OSS-20B nếu có khoá), gõ câu hỏi (tiếng Anh cho kết quả ổn định nhất) hoặc chọn câu mẫu của BIRD, bấm **Hỏi**. Model sinh SQL; hệ thống kiểm tra rồi chạy SQL trên `student_club.sqlite` ở chế độ chỉ đọc; model diễn giải kết quả thành câu tiếng Việt.
 
 Tắt app: **Ctrl+C** trong cửa sổ đang chạy server.
+
+### Bước 8 — (Tuỳ chọn) Xem log từng bước cho một câu
+
+Dùng khi demo hoặc cần giải thích luồng. Các script in từng bước (hàm nào, input, output thật) ra màn hình và ghi vào `app\logs\`. Câu của `student_club` có `question_id` từ 1312 đến 1469.
+
+```powershell
+# Luồng benchmark với Ollama (cần Ollama + qwen2.5-coder:7b-instruct)
+.\venv\Scripts\python app\scripts\trace_benchmark_ollama.py --question_id 1332                 # có evidence
+.\venv\Scripts\python app\scripts\trace_benchmark_ollama.py --question_id 1332 --no_knowledge  # không evidence
+#   -> app\logs\benchmark_ollama_<id>_<evidence|no_evidence>.log
+
+# Luồng benchmark với GPT-3.5 (OpenAI đã ngừng model này: dùng --from_pred để lấy SQL đã lưu)
+.\venv\Scripts\python app\scripts\trace_benchmark_gpt35.py --question_id 1332 `
+    --from_pred src\DAMO-ConvAI\bird\llm\exp_result\openai_output\predict_dev.json
+#   -> app\logs\benchmark_trace_<id>.log
+
+# Luồng hỏi đáp của app (giống bấm "Hỏi" trên web, dùng CSDL ứng dụng tạm)
+.\venv\Scripts\python app\scripts\trace_demo_ask.py --question_id 1332 --user thuquy
+#   -> app\logs\demo_ask_<id>_<evidence|no_evidence>.log
+```
+
+Kịch bản demo có sẵn: [docs/KICH_BAN_DEMO_5P.md](docs/KICH_BAN_DEMO_5P.md), [docs/KICH_BAN_DEMO_DUNG_SAI_STUDENT_CLUB.md](docs/KICH_BAN_DEMO_DUNG_SAI_STUDENT_CLUB.md).
 
 ### Lỗi thường gặp
 
@@ -131,19 +173,108 @@ Tắt app: **Ctrl+C** trong cửa sổ đang chạy server.
 
 ## Khảo nghiệm BIRD-SQL (benchmark)
 
-Cần dữ liệu ở Bước 3, cùng các thư viện của script gọi model:
+Cần dữ liệu ở Bước 3, cùng các thư viện của script gọi model và bộ chấm:
 
 ```powershell
-.\venv\Scripts\python -m pip install google-genai groq pandas backoff
+.\venv\Scripts\python -m pip install google-genai groq pandas backoff openpyxl
 ```
 
-- Sinh SQL: các script `src/DAMO-ConvAI/bird/llm/src/*_request.py`. Model Ollama được chạy trên Kaggle bằng `llm-as-db-interface-ollama-kaggle.ipynb`.
-- Chấm EX và VES trên toàn bộ 1.534 câu: `evaluation-and-ves-local.ipynb`, hoặc
-  ```bash
-  cd src/DAMO-ConvAI/bird/llm
-  sh run/run_evaluation.sh
-  ```
-- Gap 3 (chuẩn hoá evidence): xem [docs/gap3_runbook.md](docs/gap3_runbook.md).
+Luồng gồm 2 việc: **sinh SQL** cho 1.534 câu dev → `exp_result/<lượt>/predict_dev.json`, rồi **chấm EX/VES** so với `dev_gold.sql`. Mỗi model chạy 2 lượt: có evidence (`*_output`) và không evidence (`*_0_output`). Giải thích chi tiết: [docs/FLOW_TEXT_TO_SQL.md](docs/FLOW_TEXT_TO_SQL.md), [docs/FLOW_EVALUATION_EX_VES.md](docs/FLOW_EVALUATION_EX_VES.md).
+
+Các lượt đã chạy có sẵn trong `src/DAMO-ConvAI/bird/llm/exp_result/`:
+
+| Model | Có evidence | Không evidence |
+|---|---|---|
+| GPT-3.5-Turbo | `openai_output` | `openai_0_output` |
+| Qwen2.5-Coder 7B | `ollama_gwen25_output` | `ollama_gwen25_0_output` |
+| DeepSeek-Coder-V2 16B | `ollama_deepseekcoder_output` | `ollama_deepseekcoder_0_output` |
+| Gemma3 12B | `ollama_gemma3_output` | `ollama_gemma3_0_output` |
+
+> Mọi lệnh trong mục này chạy từ thư mục `src\DAMO-ConvAI\bird\llm`. Các tham số đường dẫn phải **có dấu `\` ở cuối** vì code gốc ghép chuỗi trực tiếp. Không dùng `run/run_evaluation.sh` của bản gốc: script đó gọi `python3` và trỏ `./data/dev_databases/` (sai chỗ với cấu trúc repo này).
+
+```powershell
+cd "src\DAMO-ConvAI\bird\llm"
+$PY = "..\..\..\..\venv\Scripts\python"
+```
+
+### 1. Sinh SQL ở local (tuỳ chọn — kết quả đã có sẵn)
+
+```powershell
+# Ollama (cần ollama serve + ollama pull qwen2.5-coder:7b-instruct). Bỏ --limit để chạy đủ 1.534 câu
+& $PY src\ollama_request2.py --model qwen2.5-coder:7b-instruct `
+    --eval_path ..\data\dev.json --db_root_path ..\data\dev_databases\ `
+    --data_output_path exp_result\thu_nghiem_output\predict_dev.json --limit 3
+# thêm --no_knowledge để chạy lượt không evidence
+```
+
+GPT dùng `src\openai_request.py` với cùng các tham số (cần `OPEN_AI_KEY` trong `.env`). Chạy đủ 1.534 câu bằng model local trên máy không có GPU mạnh mất nhiều giờ, nên các lượt Ollama được chạy trên Kaggle (xem mục 4).
+
+### 2. Chấm EX và VES ở local (toàn bộ 1.534 câu)
+
+Chấm một lượt:
+
+```powershell
+# EX
+& $PY src\evaluation.py --predicted_sql_path exp_result\ollama_gwen25_output\ `
+    --ground_truth_path data\ --data_mode dev --db_root_path ..\data\dev_databases\ `
+    --diff_json_path ..\data\dev.json --num_cpus 4 --meta_time_out 30.0
+
+# VES (chạy mỗi câu đúng 5 lần để đo thời gian, lâu hơn EX nhiều)
+& $PY src\evaluation_ves.py --predicted_sql_path exp_result\ollama_gwen25_output\ `
+    --ground_truth_path data\ --data_mode dev --db_root_path ..\data\dev_databases\ `
+    --diff_json_path ..\data\dev.json --num_cpus 4 --meta_time_out 30.0 --iterate_num 5
+```
+
+Kết quả in ra bảng theo độ khó simple / moderate / challenging / total. Đổi `exp_result\...\` để chấm lượt khác.
+
+Chấm nhiều lượt một lần:
+
+- `run\run_ollama_eval.ps1`: EX + VES cho 3 lượt Ollama có evidence. Sửa biến `$PY` ở đầu file nếu repo không nằm ở `D:\AI Learning\Paper\LLM`.
+- [evaluation-and-ves-local.ipynb](evaluation-and-ves-local.ipynb): mở Jupyter **từ thư mục gốc repo**, chạy cả 8 lượt, ghi `exp_result\summary_ex.csv` và `summary_ves.csv`.
+
+VES đo thời gian thật nên mỗi lần chấm lệch nhau một chút; chỉ so số trong cùng một lần chạy.
+
+### 3. Chấm theo 6 mức truy vấn (student_club)
+
+Chạy từ **thư mục gốc repo**:
+
+```powershell
+.\venv\Scripts\python app\scripts\ex_by_category.py                 # EX theo 6 mức, đọc kết quả có sẵn (nhanh)
+.\venv\Scripts\python app\scripts\ex_ves_by_category.py --skip_ves  # EX bằng bộ chấm gốc
+.\venv\Scripts\python app\scripts\ex_ves_by_category.py             # EX + VES (lâu hơn)
+```
+
+Kết quả ghi vào `docs\pttk\data\`. Cách phân loại: `app\scripts\sql_category.py`.
+
+### 4. Chạy trên Kaggle
+
+Dùng Kaggle khi cần GPU để chạy model Ollama, hoặc để chấm VES trên máy ổn định hơn. Notebook nằm ở thư mục gốc repo; import bằng **Code → New Notebook → File → Import Notebook**.
+
+| Notebook | Việc | Accelerator | Dataset cần gắn (Add Input) |
+|---|---|---|---|
+| `llm-as-db-interface-ollama-kaggle.ipynb` | Sinh SQL bằng Ollama cho 1.534 câu | **GPU T4** | Dataset BIRD (`bird-sql`) |
+| `run-evaluation-kaggle.ipynb` | Chấm EX + VES cho 3 model Ollama × 2 cấu hình | None | Dataset BIRD có kèm `llm/exp_result/` |
+| `ex-ves-by-category-kaggle.ipynb` | EX + VES theo 6 mức (student_club) | None | `bird-sql` + `bird-category-eval` |
+| `gap3-ollama-kaggle.ipynb`, `gap3-evaluation-kaggle.ipynb` | Thí nghiệm Gap 3 | GPU T4 / None | `bird-sql` + `bird-gap3-src` / `bird-gap3-eval` |
+
+**Chuẩn bị dataset (làm 1 lần):** Kaggle → **Datasets → New Dataset**, chọn **Private**.
+
+- Dataset BIRD: upload thư mục `src\DAMO-ConvAI\bird` **sau khi làm Bước 3** (phải có `data/dev.json`, `data/dev_databases/`, `llm/src/`, `llm/data/dev_gold.sql`; muốn chấm thì có cả `llm/exp_result/`). Notebook tự tìm thư mục chứa `data/dev.json` trong `/kaggle/input`, nên tên dataset không quan trọng.
+- Các gói kết quả: upload nguyên file `bird-category-eval.zip`, `bird-gap3-src.zip`, `bird-gap3-eval.zip` ở thư mục gốc repo, Kaggle tự giải nén.
+
+**Sinh SQL với Ollama** (`llm-as-db-interface-ollama-kaggle.ipynb`):
+
+1. Settings: **Accelerator GPU T4**, **Internet On** (cần để cài Ollama và tải model).
+2. Cell 3: bỏ comment dòng `ollama pull` của model muốn chạy.
+3. Cell cuối: bỏ comment lời gọi `collect_response(...)` tương ứng, đặt `OUTPUT_PATH` (ví dụ `/kaggle/working/exp_result/ollama_gwen25_output/predict_dev.json`). Dùng `knowledge_list` cho lượt có evidence, `knowledge_list_nokg` cho lượt không evidence. Script ghi tạm sau mỗi 50 câu; nếu bị ngắt thì chạy tiếp theo đoạn (`chunk = eval_data[512:1024]`...).
+4. **Run All**, xong thì tải `predict_dev.json` ở tab **Output** về đặt vào `src\DAMO-ConvAI\bird\llm\exp_result\<lượt>\`, rồi chấm ở local (mục 2) hoặc trên Kaggle.
+
+**Chấm trên Kaggle:** gắn dataset, Accelerator None, **Run All**, tải file CSV ở tab **Output**. Riêng `ex-ves-by-category-kaggle.ipynb` cần bật **Internet On** vì cell đầu chạy `pip install func_timeout`. Chi tiết từng cell: [docs/ex_ves_by_category_kaggle.md](docs/ex_ves_by_category_kaggle.md).
+
+### 5. Gap 3 (chuẩn hoá evidence)
+
+Xem [docs/gap3_runbook.md](docs/gap3_runbook.md).
+
 ## Nguồn
 
 Code trong `src/DAMO-ConvAI/bird/` lấy từ [AlibabaResearch/DAMO-ConvAI](https://github.com/AlibabaResearch/DAMO-ConvAI) (MIT License).

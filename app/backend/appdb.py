@@ -1,22 +1,18 @@
-"""CSDL của ứng dụng (app.sqlite) — tách khỏi CSDL nguồn student_club (chỉ đọc)."""
-import hashlib
+"""
+CSDL của ứng dụng (app.sqlite) — tách khỏi CSDL nguồn student_club (chỉ đọc).
+Chỉ chứa dữ liệu phục vụ luồng Text-to-SQL:
+  model_config    : model chọn được ở ô "Model"
+  dev_question    : 158 câu hỏi mẫu student_club của BIRD dev (câu hỏi, evidence, SQL đáp án)
+  benchmark_run   : kết quả các lượt benchmark (model × cấu hình evidence) — cho tab Benchmark
+  benchmark_item  : đúng/sai từng câu trong lượt benchmark — để tính EX theo độ khó ở tab Benchmark
+"""
 import json
 import os
-import secrets
 import sqlite3
-from datetime import datetime
 
 from . import config
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS user_account (
-    id            INTEGER PRIMARY KEY,
-    username      TEXT NOT NULL UNIQUE,
-    full_name     TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK (role IN ('member', 'board', 'admin')),
-    is_active     INTEGER NOT NULL DEFAULT 1
-);
 CREATE TABLE IF NOT EXISTS model_config (
     id          INTEGER PRIMARY KEY,
     name        TEXT NOT NULL UNIQUE,
@@ -27,7 +23,7 @@ CREATE TABLE IF NOT EXISTS model_config (
     is_active   INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS dev_question (
-    id         INTEGER PRIMARY KEY,          -- chỉ số câu hỏi trong dev.json
+    id         INTEGER PRIMARY KEY,          -- question_id trong dev.json
     question   TEXT NOT NULL,
     evidence   TEXT,
     gold_sql   TEXT NOT NULL,
@@ -41,7 +37,6 @@ CREATE TABLE IF NOT EXISTS benchmark_run (
     note        TEXT,
     ex          REAL NOT NULL,               -- EX trên student_club
     full_dev_ex REAL,                        -- EX toàn dev (1534 câu) nếu có
-    imported_at TEXT NOT NULL,
     UNIQUE (model_id, config)
 );
 CREATE TABLE IF NOT EXISTS benchmark_item (
@@ -51,40 +46,8 @@ CREATE TABLE IF NOT EXISTS benchmark_item (
     is_correct    INTEGER NOT NULL,
     PRIMARY KEY (run_id, question_id)
 );
-CREATE TABLE IF NOT EXISTS query_log (
-    id              INTEGER PRIMARY KEY,
-    user_id         INTEGER NOT NULL REFERENCES user_account(id),
-    question        TEXT NOT NULL,
-    mode            TEXT NOT NULL CHECK (mode IN ('live', 'replay')),
-    model_id        INTEGER REFERENCES model_config(id),
-    run_id          INTEGER REFERENCES benchmark_run(id),
-    dev_question_id INTEGER REFERENCES dev_question(id),
-    evidence_used   TEXT,
-    generated_sql   TEXT,
-    answer          TEXT,                    -- câu trả lời đã diễn giải (UC02f)
-    status          TEXT NOT NULL,
-    error           TEXT,
-    latency_ms      INTEGER NOT NULL,
-    row_count       INTEGER,
-    is_correct      INTEGER,
-    created_at      TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS feedback (
-    id           INTEGER PRIMARY KEY,
-    query_log_id INTEGER NOT NULL REFERENCES query_log(id),
-    user_id      INTEGER NOT NULL REFERENCES user_account(id),
-    rating       INTEGER NOT NULL CHECK (rating IN (-1, 1)),
-    comment      TEXT,
-    created_at   TEXT NOT NULL,
-    UNIQUE (query_log_id, user_id)
-);
 """
 
-SEED_USERS = [
-    ('admin', 'Quản trị viên', 'admin123', 'admin'),
-    ('thuquy', 'Thủ quỹ CLB', 'thuquy123', 'board'),
-    ('thanhvien', 'Thành viên CLB', 'thanhvien123', 'member'),
-]
 OLLAMA_V1 = 'http://localhost:11434/v1'
 SEED_MODELS = [
     ('GPT-3.5-Turbo', 'openai', 'gpt-3.5-turbo', None, 'OPEN_AI_KEY'),
@@ -105,21 +68,6 @@ FULL_DEV_EX = {
 }
 
 
-def now() -> str:
-    return datetime.now().isoformat(timespec='seconds')
-
-
-def hash_password(password: str, salt: str = None) -> str:
-    salt = salt or secrets.token_hex(8)
-    digest = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100_000).hex()
-    return f'{salt}${digest}'
-
-
-def verify_password(password: str, stored: str) -> bool:
-    salt = stored.split('$', 1)[0]
-    return secrets.compare_digest(hash_password(password, salt), stored)
-
-
 def connect() -> sqlite3.Connection:
     conn = sqlite3.connect(config.APP_DB, check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -128,7 +76,7 @@ def connect() -> sqlite3.Connection:
 
 
 def import_benchmark(conn: sqlite3.Connection, data: dict) -> int:
-    """UC08: nạp file benchmark (định dạng của app/scripts/per_db_ex.py). Trả về số lượt chạy."""
+    """Nạp file benchmark do app/scripts/per_db_ex.py sinh ra. Trả về số lượt benchmark."""
     conn.executemany(
         'INSERT OR REPLACE INTO dev_question (id, question, evidence, gold_sql, difficulty) VALUES (?,?,?,?,?)',
         [(q['question_id'], q['question'], q['evidence'], q['gold_sql'], q['difficulty'])
@@ -139,10 +87,9 @@ def import_benchmark(conn: sqlite3.Connection, data: dict) -> int:
             raise ValueError(f'Model "{run["model"]}" chưa có trong cấu hình model')
         conn.execute('DELETE FROM benchmark_run WHERE model_id = ? AND config = ?', (model['id'], run['config']))
         run_id = conn.execute(
-            'INSERT INTO benchmark_run (model_id, config, source, note, ex, full_dev_ex, imported_at) '
-            'VALUES (?,?,?,?,?,?,?)',
+            'INSERT INTO benchmark_run (model_id, config, source, note, ex, full_dev_ex) VALUES (?,?,?,?,?,?)',
             (model['id'], run['config'], run['source'], run.get('note'), run['total'],
-             run.get('full_dev_ex', FULL_DEV_EX.get((run['model'], run['config']))), now())).lastrowid
+             run.get('full_dev_ex', FULL_DEV_EX.get((run['model'], run['config']))))).lastrowid
         conn.executemany(
             'INSERT INTO benchmark_item (run_id, question_id, predicted_sql, is_correct) VALUES (?,?,?,?)',
             [(run_id, it['question_id'], it['predicted_sql'], it['is_correct']) for it in run['items']])
@@ -151,19 +98,18 @@ def import_benchmark(conn: sqlite3.Connection, data: dict) -> int:
 
 
 def init_db(reset: bool = False) -> None:
+    """Tạo app.sqlite: bảng, danh sách model, câu hỏi mẫu và kết quả benchmark (từ BENCHMARK_JSON)."""
     os.makedirs(os.path.dirname(config.APP_DB), exist_ok=True)
     if reset and os.path.exists(config.APP_DB):
         os.remove(config.APP_DB)
     conn = connect()
     try:
+        if conn.execute("SELECT name FROM sqlite_master WHERE name = 'user_account'").fetchone():
+            conn.close()  # app.sqlite của bản cũ (có tài khoản, nhật ký) → tạo lại từ đầu
+            os.remove(config.APP_DB)
+            conn = connect()
         conn.executescript(SCHEMA)
-        # nâng cấp app.sqlite tạo trước khi có cột answer
-        if 'answer' not in [c[1] for c in conn.execute('PRAGMA table_info(query_log)')]:
-            conn.execute('ALTER TABLE query_log ADD COLUMN answer TEXT')
-        if conn.execute('SELECT COUNT(*) FROM user_account').fetchone()[0] == 0:
-            conn.executemany(
-                'INSERT INTO user_account (username, full_name, password_hash, role) VALUES (?,?,?,?)',
-                [(u, n, hash_password(p), r) for u, n, p, r in SEED_USERS])
+        if conn.execute('SELECT COUNT(*) FROM model_config').fetchone()[0] == 0:
             conn.executemany(
                 'INSERT INTO model_config (name, provider, model_tag, base_url, api_key_env) VALUES (?,?,?,?,?)',
                 SEED_MODELS)

@@ -1,19 +1,18 @@
 """
-Log từng bước của luồng hỏi đáp Text-to-SQL (demo ClubQuery, CSDL student_club).
+Log từng bước cho các script app/scripts/trace_benchmark_*.py (luồng BENCHMARK, không dùng trong app web).
 
 Mỗi bước ghi:
   - Hàm nào được gọi, hàm đó làm gì
   - Input / tham số: giá trị thật + giải thích ý nghĩa
   - Output: giá trị thật hàm trả về
 
-Log in ra console (cửa sổ chạy uvicorn) và ghi vào app/logs/ask_trace.log.
+Log in ra console và ghi vào file do script đặt qua CLUBQUERY_TRACE_FILE.
 Biến môi trường:
   CLUBQUERY_TRACE=0          tắt log
   CLUBQUERY_TRACE_MAXLEN=N   cắt chuỗi dài hơn N ký tự (mặc định 0 = in đầy đủ, kể cả prompt)
   CLUBQUERY_TRACE_ROWS=N     số dòng kết quả SQL tối đa được in (mặc định 20)
 """
 import io
-import itertools
 import json
 import logging
 import os
@@ -24,8 +23,8 @@ from . import config
 ENABLED = os.environ.get('CLUBQUERY_TRACE', '1') != '0'
 MAXLEN = int(os.environ.get('CLUBQUERY_TRACE_MAXLEN', '0'))
 MAX_ROWS = int(os.environ.get('CLUBQUERY_TRACE_ROWS', '20'))
-LOG_FILE = os.environ.get('CLUBQUERY_TRACE_FILE', os.path.join(config.ROOT, 'app', 'logs', 'ask_trace.log'))
-PREFIX = 'ASK'  # script benchmark đổi thành 'BENCH'
+LOG_FILE = os.environ.get('CLUBQUERY_TRACE_FILE', os.path.join(config.ROOT, 'app', 'logs', 'benchmark_trace.log'))
+PREFIX = 'BENCH'  # script đặt lại: 'BENCH' (GPT-3.5) hoặc 'OLLAMA'
 
 log = logging.getLogger('clubquery.trace')
 if not log.handlers:
@@ -47,8 +46,7 @@ if not log.handlers:
     except OSError:
         pass
 
-_ids = itertools.count(1)
-_current = {'id': 0}
+_current = {'id': 0}  # script đặt = question_id đang trace
 
 
 def _short(s: str) -> str:
@@ -81,15 +79,6 @@ def _indent(text: str, pad: str) -> str:
     return '\n'.join(pad + line for line in text.splitlines()) if text else pad
 
 
-def begin(question: str, user: dict, mode: str) -> int:
-    """Bắt đầu một lượt hỏi; trả về mã lượt để các bước sau gắn vào."""
-    _current['id'] = rid = next(_ids)
-    if ENABLED:
-        log.info('\n' + '=' * 100 + f'\n[ASK #{rid}] BẮT ĐẦU — user={user.get("username")} '
-                 f'(role={user.get("role")}), mode={mode}\n  câu hỏi gõ vào: {question!r}\n' + '=' * 100)
-    return rid
-
-
 def step(label: str, func: str, purpose: str, params=None, output=None, note: str = None,
          output_desc: str = None):
     """
@@ -117,10 +106,3 @@ def step(label: str, func: str, purpose: str, params=None, output=None, note: st
     if note:
         lines.append(f'  Ghi chú: {note}')
     log.info('\n'.join(lines))
-
-
-def end(out: dict):
-    if ENABLED:
-        log.info(f'\n[ASK #{_current["id"]}] KẾT THÚC — status={out.get("status")}, '
-                 f'is_correct={out.get("is_correct")}, latency_ms={out.get("latency_ms")}, '
-                 f'log_id={out.get("log_id")}\n' + '=' * 100)

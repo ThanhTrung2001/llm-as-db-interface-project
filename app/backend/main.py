@@ -5,7 +5,6 @@ Mở http://127.0.0.1:8000
     POST /api/ask                 hỏi đáp Text-to-SQL → service.ask()
     GET  /api/dev-questions       158 câu hỏi mẫu student_club (ô "Câu hỏi mẫu")
     GET  /api/models              model đang bật (ô "Model")
-    GET  /api/benchmark/summary   EX theo model × cấu hình × độ khó (tab Benchmark)
 """
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -20,7 +19,7 @@ from . import appdb, config, service
 
 @asynccontextmanager
 async def lifespan(_app):
-    appdb.init_db()  # tạo app.sqlite lần đầu: model, câu hỏi mẫu, kết quả benchmark
+    appdb.init_db()  # tạo app.sqlite lần đầu: danh sách model + 158 câu hỏi mẫu
     yield
 
 
@@ -63,25 +62,6 @@ def dev_questions(conn=Depends(db)):
 @app.get('/api/models')
 def models(conn=Depends(db)):
     return [dict(r) for r in conn.execute('SELECT * FROM model_config WHERE is_active = 1 ORDER BY id')]
-
-
-CONFIG_ORDER = "CASE r.config WHEN 'no_evidence' THEN 0 WHEN 'evidence' THEN 1 ELSE 2 END"
-
-
-@app.get('/api/benchmark/summary')
-def benchmark_summary(conn=Depends(db)):
-    rows = conn.execute(
-        'SELECT r.id, m.name AS model_name, r.config, r.note, r.ex, r.full_dev_ex, q.difficulty, '
-        'ROUND(100.0 * AVG(b.is_correct), 2) AS ex_level, COUNT(*) AS n '
-        'FROM benchmark_run r JOIN model_config m ON m.id = r.model_id '
-        'JOIN benchmark_item b ON b.run_id = r.id JOIN dev_question q ON q.id = b.question_id '
-        'GROUP BY r.id, q.difficulty ORDER BY m.id, ' + CONFIG_ORDER).fetchall()
-    out = {}
-    for r in rows:
-        run = out.setdefault(r['id'], {k: r[k] for k in ('id', 'model_name', 'config', 'note', 'ex', 'full_dev_ex')}
-                             | {'levels': {}})
-        run['levels'][r['difficulty']] = {'ex': r['ex_level'], 'n': r['n']}
-    return list(out.values())
 
 
 @app.get('/')

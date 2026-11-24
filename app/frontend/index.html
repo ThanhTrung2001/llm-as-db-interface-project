@@ -7,56 +7,32 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div id="app-view">
-    <header class="topbar">
-      <strong class="brand">ClubQuery</strong>
-      <nav id="tabs">
-        <button data-go="ask">Hỏi đáp</button>
-        <button data-go="bench">Benchmark</button>
-      </nav>
-    </header>
+  <header class="topbar">
+    <strong class="brand">ClubQuery</strong>
+    <span class="muted small">Hỏi đáp Text-to-SQL trên CSDL student_club (BIRD)</span>
+  </header>
 
-    <main>
-      <!-- Hỏi đáp Text-to-SQL -->
-      <section data-tab="ask">
-        <div class="card">
-          <p class="muted small">Gọi model ngay lúc hỏi. Câu hỏi tiếng Anh cho kết quả ổn định nhất (bộ BIRD bằng tiếng Anh).</p>
+  <main>
+    <div class="card">
+      <p class="muted small">Gọi model ngay lúc hỏi. Câu hỏi tiếng Anh cho kết quả ổn định nhất (bộ BIRD bằng tiếng Anh).</p>
 
-          <div class="grid2">
-            <label>Model <select id="model"></select></label>
-            <label>Câu hỏi mẫu (bộ dev BIRD, 158 câu)
-              <select id="devq"><option value="">— tự nhập câu hỏi —</option></select>
-            </label>
-          </div>
-          <label id="question-field">Câu hỏi
-            <textarea id="question" rows="2" placeholder="Ví dụ: How many meetings were held in 2020?"></textarea>
-          </label>
-          <div id="evidence-opt" class="row small" hidden>
-            <label class="check"><input type="checkbox" id="use-evidence" checked> Dùng evidence của câu mẫu</label>
-          </div>
-          <div id="devq-preview" class="muted small"></div>
-          <button id="ask-btn" class="primary">Hỏi</button>
-        </div>
-        <div id="result"></div>
-      </section>
-
-      <!-- Kết quả benchmark -->
-      <section data-tab="bench" hidden>
-        <div class="card viz-root">
-          <h2>EX trên CSDL student_club (158 câu)</h2>
-          <p class="muted small">EX = tỉ lệ câu có kết quả thực thi trùng đáp án chuẩn. Chấm bằng
-            <code>evaluation.py</code> gốc của BIRD. Số của 3 model Ollama là <b>tạm thời</b>
-            (đo trước khi sửa lỗi prompt). Sai số với 158 câu khoảng ±8 điểm.</p>
-          <div id="legend" class="legend"></div>
-          <div id="chart" class="chart"></div>
-          <div id="tooltip" class="tooltip" hidden></div>
-          <h3>Bảng số liệu</h3>
-          <div id="bench-table"></div>
-        </div>
-      </section>
-
-    </main>
-  </div>
+      <div class="grid2">
+        <label>Model <select id="model"></select></label>
+        <label>Câu hỏi mẫu (bộ dev BIRD, 158 câu)
+          <select id="devq"><option value="">— tự nhập câu hỏi —</option></select>
+        </label>
+      </div>
+      <label id="question-field">Câu hỏi
+        <textarea id="question" rows="2" placeholder="Ví dụ: How many meetings were held in 2020?"></textarea>
+      </label>
+      <div id="evidence-opt" class="row small" hidden>
+        <label class="check"><input type="checkbox" id="use-evidence" checked> Dùng evidence của câu mẫu</label>
+      </div>
+      <div id="devq-preview" class="muted small"></div>
+      <button id="ask-btn" class="primary">Hỏi</button>
+    </div>
+    <div id="result"></div>
+  </main>
   <script src="/static/app.js"></script>
 </body>
 </html>

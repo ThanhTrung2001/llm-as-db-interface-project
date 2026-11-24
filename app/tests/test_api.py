@@ -125,6 +125,6 @@ def test_ask_requires_question():
     assert client.post('/api/ask', json={'model_id': 1}).status_code == 422
 
 
-def test_benchmark_summary():
-    s = client.get('/api/benchmark/summary').json()
-    assert len(s) == 12 and all(set(r['levels']) == {'simple', 'moderate', 'challenging'} for r in s)
+def test_dev_questions_loaded_from_dev_json():
+    qs = client.get('/api/dev-questions').json()
+    assert len(qs) == 158 and qs[0]['id'] == 1312 and qs[-1]['id'] == 1469

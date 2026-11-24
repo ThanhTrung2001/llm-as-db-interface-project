@@ -3,7 +3,7 @@
 Dự án gồm hai phần, cùng dựa trên bài báo **"Can LLM Already Serve as A Database Interface? A BIg Bench for Large-Scale Database Grounded Text-to-SQLs" (BIRD-SQL, NeurIPS 2023)** — https://arxiv.org/abs/2305.03111:
 
 1. **Khảo nghiệm lại BIRD-SQL** (đồ án môn Hệ thống CSDL tiên tiến): giữ nguyên prompt và bộ chấm của bài báo, thay các model đã ngừng hoạt động bằng model hiện tại; thêm thí nghiệm chuẩn hoá evidence (Gap 3). Nhật ký chi tiết: [PROJECT_LOG.md](PROJECT_LOG.md).
-2. **ClubQuery** (đồ án môn Phân tích thiết kế hệ thống thông tin): demo hỏi đáp Text-to-SQL trên CSDL `student_club` của BIRD, dùng đúng prompt và cách tách SQL của luồng benchmark; kèm tab xem EX của các lượt benchmark. Phần phân quyền, nhật ký, tài khoản của đồ án PTTK đã gỡ khỏi code. Báo cáo cũ: [docs/pttk/BAO_CAO.docx](docs/pttk/BAO_CAO.docx) (nguồn Markdown: [docs/pttk/BAO_CAO.md](docs/pttk/BAO_CAO.md)).
+2. **ClubQuery** (đồ án môn Phân tích thiết kế hệ thống thông tin): demo hỏi đáp Text-to-SQL trên CSDL `student_club` của BIRD, dùng đúng prompt và cách tách SQL của luồng benchmark. Phần phân quyền, nhật ký, tài khoản của đồ án PTTK đã gỡ khỏi code. Báo cáo cũ: [docs/pttk/BAO_CAO.docx](docs/pttk/BAO_CAO.docx) (nguồn Markdown: [docs/pttk/BAO_CAO.md](docs/pttk/BAO_CAO.md)).
 
 ## Cấu trúc
 
@@ -11,20 +11,16 @@ Dự án gồm hai phần, cùng dựa trên bài báo **"Can LLM Already Serve 
 app/                           # ClubQuery
   backend/                     #   main.py (API), service.py (luồng hỏi đáp + chạy SQL chỉ đọc),
                                #   prompt.py (schema + comment + câu chặn), llm.py (gọi LLM, tách SQL),
-                               #   answer.py (diễn giải câu trả lời), appdb.py (app.sqlite), trace.py (log cho trace_benchmark_*.py)
+                               #   answer.py (diễn giải câu trả lời), appdb.py (app.sqlite: model + câu hỏi mẫu)
   frontend/                    #   index.html, app.js, style.css
-  scripts/
-    per_db_ex.py               #   chấm EX theo CSDL bằng evaluation.py gốc -> bảng EX + dữ liệu cho tab Benchmark
+  scripts/                     #   phân tích kết quả benchmark (không dùng trong app)
+    per_db_ex.py               #   chấm EX theo CSDL bằng evaluation.py gốc
     sql_category.py            #   phân loại SQL vào 6 mức (1 bảng, join, set-op, outer join, group by, phép chia)
     ex_by_category.py          #   EX theo 6 mức
     ex_ves_by_category.py      #   EX + VES theo 6 mức (local hoặc Kaggle)
-    trace_benchmark_ollama.py  #   log từng bước luồng benchmark cho 1 câu (Ollama)
-    trace_benchmark_gpt35.py   #   như trên, với GPT-3.5-Turbo
-  logs/                        #   log do các script trace ghi ra
   tests/                       #   pytest
 docs/
   FLOW_*.md                    #   giải thích luồng benchmark, sinh SQL, chấm EX/VES
-  KICH_BAN_DEMO_*.md           #   kịch bản demo
   ex_ves_by_category_kaggle.md #   hướng dẫn chấm theo 6 mức trên Kaggle
   gap3_runbook.md              #   hướng dẫn thí nghiệm Gap 3
   pttk/                        #   báo cáo, diagram PlantUML (.puml + .png), ảnh màn hình
@@ -100,30 +96,19 @@ ollama serve                          # nếu Ollama chưa tự chạy
 ollama pull qwen2.5-coder:7b          # model app dùng; tuỳ chọn thêm deepseek-coder-v2:16b, gemma3:12b
 ```
 
-### Bước 5 — Chấm điểm benchmark (dữ liệu cho tab Benchmark)
-
-```powershell
-.\venv\Scripts\python app\scripts\per_db_ex.py
-```
-
-Script chấm 12 lượt (4 model × 3 cấu hình) × 158 câu bằng `evaluation.py` gốc, rồi ghi ra:
-
-- `app\data\benchmark_student_club.json`: 158 câu hỏi mẫu (câu hỏi, evidence, SQL đáp án) và EX cho tab Benchmark.
-- `docs\pttk\data\ex_student_club.csv`: bảng EX.
-
-### Bước 6 — (Tuỳ chọn) Kiểm thử
+### Bước 5 — (Tuỳ chọn) Kiểm thử
 
 ```powershell
 .\venv\Scripts\python -m pytest app\tests -q      # mong đợi: 19 passed (không gọi model thật)
 ```
 
-### Bước 7 — Chạy app
+### Bước 6 — Chạy app
 
 ```powershell
 .\venv\Scripts\python -m uvicorn app.backend.main:app --port 8000
 ```
 
-Mở http://127.0.0.1:8000 (không cần đăng nhập). Lần chạy đầu, app tự tạo `app\data\app.sqlite`: danh sách model, 158 câu hỏi mẫu và kết quả benchmark từ Bước 5.
+Mở http://127.0.0.1:8000 (không cần đăng nhập). Lần chạy đầu, app tự tạo `app\data\app.sqlite`: danh sách model và 158 câu hỏi mẫu của `student_club` (đọc từ `dev.json` ở Bước 3).
 
 Chọn model (mặc định Qwen2.5-Coder qua Ollama; GPT-3.5-Turbo / GPT-OSS-20B nếu có khoá), gõ câu hỏi (tiếng Anh cho kết quả ổn định nhất) hoặc chọn câu mẫu của BIRD, bấm **Hỏi**. Kết quả hiện câu trả lời, bảng dữ liệu, và có thể mở xem prompt gửi LLM, văn bản thô model trả về, SQL đã chạy, SQL đáp án.
 
@@ -142,33 +127,15 @@ Luồng xử lý một câu hỏi — `service.ask()` gọi lần lượt:
 
 Tắt app: **Ctrl+C** trong cửa sổ đang chạy server.
 
-### Bước 8 — (Tuỳ chọn) Xem log từng bước của luồng benchmark cho một câu
-
-Dùng khi cần giải thích luồng benchmark. Các script in từng bước (hàm nào, input, output thật) ra màn hình và ghi vào `app\logs\`. Câu của `student_club` có `question_id` từ 1312 đến 1469.
-
-```powershell
-# Luồng benchmark với Ollama (cần Ollama + qwen2.5-coder:7b-instruct)
-.\venv\Scripts\python app\scripts\trace_benchmark_ollama.py --question_id 1332                 # có evidence
-.\venv\Scripts\python app\scripts\trace_benchmark_ollama.py --question_id 1332 --no_knowledge  # không evidence
-#   -> app\logs\benchmark_ollama_<id>_<evidence|no_evidence>.log
-
-# Luồng benchmark với GPT-3.5 (OpenAI đã ngừng model này: dùng --from_pred để lấy SQL đã lưu)
-.\venv\Scripts\python app\scripts\trace_benchmark_gpt35.py --question_id 1332 `
-    --from_pred src\DAMO-ConvAI\bird\llm\exp_result\openai_output\predict_dev.json
-#   -> app\logs\benchmark_trace_<id>.log
-```
-
-Kịch bản demo có sẵn: [docs/KICH_BAN_DEMO_5P.md](docs/KICH_BAN_DEMO_5P.md), [docs/KICH_BAN_DEMO_DUNG_SAI_STUDENT_CLUB.md](docs/KICH_BAN_DEMO_DUNG_SAI_STUDENT_CLUB.md).
-
 ### Lỗi thường gặp
 
 | Hiện tượng | Cách xử lý |
 |---|---|
-| Ô "Câu hỏi mẫu" và tab Benchmark trống | Chưa chạy Bước 5. Chạy xong thì làm mới dữ liệu ứng dụng (dòng cuối bảng) |
+| App báo lỗi không tìm thấy `dev.json` / `student_club.sqlite` | Chưa làm Bước 3 |
 | "Chưa cấu hình khoá API" | Thiếu `OPEN_AI_KEY` trong `.env` |
 | Model Ollama báo "Lỗi gọi model" | Cài Ollama, chạy `ollama serve` và `ollama pull qwen2.5-coder:7b` (tương tự với `deepseek-coder-v2:16b`, `gemma3:12b`). Không dùng thì chọn GPT-3.5-Turbo |
 | Cổng 8000 đang bận | Chạy với `--port 8001` |
-| Muốn làm mới dữ liệu ứng dụng | `.\venv\Scripts\python -m app.backend.appdb` (tạo lại `app.sqlite` từ `benchmark_student_club.json`) |
+| Muốn làm mới dữ liệu ứng dụng | `.\venv\Scripts\python -m app.backend.appdb` (tạo lại `app.sqlite`: danh sách model + 158 câu hỏi mẫu từ `dev.json`) |
 
 ## Khảo nghiệm BIRD-SQL (benchmark)
 

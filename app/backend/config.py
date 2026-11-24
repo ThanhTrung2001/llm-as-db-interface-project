@@ -10,7 +10,7 @@ if BIRD_SRC not in sys.path:
 
 SOURCE_DB = os.path.join(BIRD, 'data', 'dev_databases', 'student_club', 'student_club.sqlite')
 APP_DB = os.environ.get('CLUBQUERY_APP_DB', os.path.join(ROOT, 'app', 'data', 'app.sqlite'))
-BENCHMARK_JSON = os.path.join(ROOT, 'app', 'data', 'benchmark_student_club.json')
+DEV_JSON = os.path.join(BIRD, 'data', 'dev.json')  # bộ câu hỏi dev của BIRD (lấy 158 câu của student_club)
 FRONTEND_DIR = os.path.join(ROOT, 'app', 'frontend')
 
 QUERY_TIMEOUT_S = 10   # chạy SQL của model quá số giây này thì ngắt

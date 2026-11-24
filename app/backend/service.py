@@ -5,7 +5,7 @@ Luồng hỏi đáp Text-to-SQL. POST /api/ask → ask() gọi lần lượt:
     2. load_model()               đọc cấu hình model đã chọn
     3. prompt.build_prompt()      schema + "\\n\\n" + câu hỏi (kèm evidence) + câu chặn
     4. llm.call_llm_for_sql()     gửi prompt cho LLM, nhận văn bản thô
-    5. llm.extract_sql()          tách câu SQL khỏi văn bản thô (hàm của script benchmark)
+    5. llm.extract_sql()          tách câu SQL khỏi văn bản thô (chép từ script benchmark)
     6. execute_sql()              chạy SQL trên student_club.sqlite (chỉ đọc) → cột + dòng
     7. answer.make_answer()       diễn giải kết quả thành câu trả lời
     8. compare_with_gold()        (câu mẫu) so kết quả với SQL đáp án như evaluation.py

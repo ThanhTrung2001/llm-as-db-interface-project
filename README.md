@@ -99,7 +99,7 @@ ollama pull qwen2.5-coder:7b          # model app dùng; tuỳ chọn thêm deep
 ### Bước 5 — (Tuỳ chọn) Kiểm thử
 
 ```powershell
-.\venv\Scripts\python -m pytest app\tests -q      # mong đợi: 19 passed (không gọi model thật)
+.\venv\Scripts\python -m pytest app\tests -q      # mong đợi: 24 passed (không gọi model thật)
 ```
 
 ### Bước 6 — Chạy app
@@ -120,7 +120,7 @@ Luồng xử lý một câu hỏi — `service.ask()` gọi lần lượt:
 | 2 | `service.load_model` | Đọc cấu hình model (provider, model_tag, base_url) |
 | 3 | `prompt.build_prompt` | `build_schema_part()` (các câu CREATE TABLE) + `"\n\n"` + `build_question_part()` (External Knowledge nếu có, câu dẫn, câu hỏi) + `build_instruction_part()` (câu chặn) — đúng khuôn `generate_combined_prompts_one()` của benchmark |
 | 4 | `llm.call_llm_for_sql` | Gửi prompt cho LLM (temperature = 0, tham số như lúc benchmark), nhận văn bản thô |
-| 5 | `llm.extract_sql` | Tách SQL bằng `extract_sql()` của script benchmark (`ollama_request.py` / `openai_request.py`) |
+| 5 | `llm.extract_sql` | Tách SQL: `extract_sql_chat()` (chép từ `ollama_request.py`) hoặc `extract_sql_openai()` (chép từ `openai_request.py`) |
 | 6 | `service.execute_sql` | Chạy SQL trên `student_club.sqlite` ở chế độ chỉ đọc, có timeout |
 | 7 | `answer.make_answer` | Nhờ model diễn giải kết quả thành câu trả lời (model lỗi thì dựng câu theo mẫu) |
 | 8 | `service.compare_with_gold` | Câu mẫu: chạy SQL đáp án, so `set(kết quả) == set(đáp án)` như `evaluation.py` |

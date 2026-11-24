@@ -90,6 +90,23 @@ def test_gpt35_matches_openai_request(monkeypatch, conn):
     assert r['status'] == 'EXECUTED'
 
 
+RAW_OUTPUTS = [
+    "```sql\nSELECT COUNT(*) FROM event;\n```",
+    "<think>đếm số sự kiện</think>\n```sql\nSELECT COUNT(*) FROM event\n```",
+    "```sql\nSELECT name FROM member WHERE x = 1",   # khối ```sql bị cắt cụt
+    "SELECT COUNT(*) FROM event; -- giải thích",
+    "COUNT(*) FROM event",                          # GPT-3.5 viết tiếp sau "SELECT "
+]
+
+
+@pytest.mark.parametrize('raw', RAW_OUTPUTS)
+def test_extract_sql_matches_benchmark(raw):
+    import ollama_request
+    import openai_request
+    assert llm.extract_sql('ollama', raw) == ollama_request.extract_sql(raw)
+    assert llm.extract_sql('openai', raw) == openai_request.extract_sql(raw)
+
+
 def test_answer_falls_back_to_template(monkeypatch):
     calls = []
 

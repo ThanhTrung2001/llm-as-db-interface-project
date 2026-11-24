@@ -5,13 +5,12 @@ OpenAI, Groq, Ollama đều gọi qua cùng một client OpenAI
 (Ollama có API tương thích OpenAI tại http://localhost:11434/v1).
 """
 import os
+import re
 
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from . import config  # config: thêm bird/llm/src vào sys.path để import script benchmark
-from ollama_request import extract_sql as ollama_extract_sql  # hàm tách SQL lúc benchmark Ollama
-from openai_request import extract_sql as openai_extract_sql  # hàm tách SQL lúc benchmark GPT-3.5-Turbo
+from . import config
 
 # Tham số gọi API đúng như openai_request.call_openai() lúc benchmark GPT-3.5-Turbo
 OPENAI_MAX_TOKENS = 256
@@ -54,16 +53,47 @@ def call_llm_for_sql(model: dict, prompt: str) -> str:
     return call_llm(model, prompt)
 
 
-def extract_sql(provider: str, raw_text: str) -> str:
-    """Tách câu SQL khỏi văn bản thô bằng đúng hàm extract_sql của script benchmark.
-    Trả về '' nếu model không sinh được SQL.
+# ---------- tách SQL khỏi văn bản thô (chép từ ollama_request.py / openai_request.py) ----------
 
-    openai  : bỏ khối ```sql nếu có, bỏ chữ SELECT thừa ở đầu, cắt ở ';', ghép lại "SELECT " + phần còn lại
-              (prompt kết thúc bằng "SELECT ", model chỉ viết tiếp phần sau)
-    còn lại : bỏ <think>...</think>, lấy nội dung trong ```sql ... ```, cắt ở dấu ';' đầu tiên
+SQL_FENCE_RE = re.compile(r"```(?:sql)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)  # khối ```sql ... ``` đủ hai đầu
+OPEN_FENCE_RE = re.compile(r"```(?:sql)?\s*", re.IGNORECASE)                    # chỉ có ```sql mở (bị cắt cụt)
+THINK_TAG_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)      # đoạn suy luận <think>...</think>
+
+
+def extract_sql_chat(raw_text: str) -> str:
+    """Tách SQL cho model chat (Ollama, Groq) — giống ollama_request.extract_sql.
+
+    Ví dụ: "<think>...</think>\\n```sql\\nSELECT COUNT(*) FROM event;\\n```"  →  "SELECT COUNT(*) FROM event"
     """
-    if provider == 'openai':
-        sql = openai_extract_sql(raw_text)
+    text = THINK_TAG_RE.sub('', raw_text)          # 1. bỏ đoạn suy luận <think>...</think> (nếu có)
+    match = SQL_FENCE_RE.search(text)
+    if match:
+        text = match.group(1)                      # 2a. lấy nội dung trong khối ```sql ... ```
     else:
-        sql = ollama_extract_sql(raw_text)
-    return '' if sql == 'SELECT' else sql  # hàm của benchmark trả "SELECT" khi không tách được gì
+        text = OPEN_FENCE_RE.sub('', text, count=1)  # 2b. không có khối đóng: chỉ bỏ ```sql ở đầu
+    return text.strip().split(';')[0].strip()      # 3. cắt ở dấu ';' đầu tiên
+
+
+def extract_sql_openai(raw_text: str) -> str:
+    """Tách SQL cho GPT-3.5-Turbo — giống openai_request.extract_sql.
+
+    Prompt kết thúc bằng "SELECT ", model chỉ viết tiếp phần sau, nên ghép lại "SELECT " + phần model viết.
+    Ví dụ: "COUNT(*) FROM event"  →  "SELECT COUNT(*) FROM event"
+    """
+    text = raw_text.strip()
+    match = SQL_FENCE_RE.search(text)
+    if match:
+        text = match.group(1).strip()              # 1a. model vẫn bọc ```sql ... ``` → lấy nội dung trong
+    else:
+        text = OPEN_FENCE_RE.sub('', text, count=1).strip()  # 1b. bỏ ```sql mở ở đầu (nếu có)
+    if text.upper().startswith('SELECT'):
+        text = text[len('SELECT'):].lstrip()       # 2. model tự viết lại "SELECT" → bỏ để khỏi bị lặp
+    text = text.split(';')[0].strip()              # 3. cắt ở dấu ';' đầu tiên
+    return ('SELECT ' + text) if text else ''      # 4. ghép lại "SELECT " + phần còn lại
+
+
+def extract_sql(provider: str, raw_text: str) -> str:
+    """Tách câu SQL khỏi văn bản thô model trả về. Trả về '' nếu model không sinh được SQL."""
+    if provider == 'openai':
+        return extract_sql_openai(raw_text)
+    return extract_sql_chat(raw_text)

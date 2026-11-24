@@ -99,3 +99,54 @@ details { margin: 8px 0; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { position: sticky; top: 0; background: var(--surface-1); color: var(--text-secondary); font-weight: 600; }
+
+/* ---------- "Các bước bên trong": từ prompt đến SQL ---------- */
+:root { --server: #6b4fbb; --server-bg: #f1edfb; --app-bg: #eaf2fc; }
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) { --server: #b9a5f5; --server-bg: #241d38; --app-bg: #172536; }
+}
+:root[data-theme="dark"] { --server: #b9a5f5; --server-bg: #241d38; --app-bg: #172536; }
+
+.pipeline { margin: 12px 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.pipeline > summary { cursor: pointer; }
+.steps { list-style: none; margin: 8px 0 0; padding: 0; counter-reset: none; }
+.step { position: relative; margin: 0 0 10px; padding: 10px 12px 6px; border-radius: 8px; border-left: 4px solid var(--accent);
+  background: var(--app-bg); }
+.step.side-server { border-left-color: var(--server); background: var(--server-bg); }
+.step p { margin: 6px 0; color: var(--text-primary); }
+.step-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.step-no { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px;
+  font-weight: 700; background: var(--accent); color: var(--accent-ink); }
+.side-server .step-no { background: var(--server); }
+.badge.side-app { color: var(--accent); }
+.badge.side-server { color: var(--server); }
+.step pre { background: var(--surface-1); }
+
+table.facts { width: auto; margin: 6px 0; font-size: 12.5px; }
+table.facts th { position: static; background: none; font-weight: 500; padding: 2px 12px 2px 0; }
+table.facts td { padding: 2px 0; font-family: ui-monospace, Consolas, monospace; }
+table.facts th, table.facts td { border-bottom: none; }
+
+.toks { display: flex; flex-wrap: wrap; gap: 3px; margin: 8px 0 4px; }
+.tok { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; padding: 1px 5px; border-radius: 4px; cursor: help;
+  border: 1px solid transparent; white-space: pre; }
+.tok.sure { background: var(--good-bg); color: var(--good); }
+.tok.mid { background: var(--warning-bg); color: var(--warning); border-color: var(--warning); }
+.tok.low { background: var(--critical-bg); color: var(--critical); border-color: var(--critical); }
+tr.unsure td { background: var(--warning-bg); }
+pre.sql { border-left: 4px solid var(--good); }
+
+/* mục "Bên trong model" */
+.step-no { width: 24px; height: 24px; }
+.io { font-weight: 600; font-size: 13px; margin: 6px 0 2px; color: var(--server); }
+.check { display: inline-block; margin: 6px 0; padding: 3px 10px; border-radius: 99px; font-size: 12.5px; font-weight: 600; }
+.check.ok { background: var(--good-bg); color: var(--good); }
+.check.bad { background: var(--critical-bg); color: var(--critical); }
+.toks.scroll { max-height: 180px; overflow-y: auto; padding: 6px; background: var(--surface-1); border-radius: 6px;
+  border: 1px solid var(--border); }
+.tok { background: var(--code-bg); }
+.tok.special { background: var(--server); color: var(--accent-ink); }
+pre.tpl mark { background: var(--warning-bg); color: var(--warning); font-weight: 600; }
+.chosen { font-weight: 700; }
+.chosen code { outline: 1.5px solid var(--good); }
+.warning-text { color: var(--warning); }

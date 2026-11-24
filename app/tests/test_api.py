@@ -1,8 +1,8 @@
-"""Kiểm thử chức năng qua API theo từng use case và vai trò."""
+"""Kiểm thử luồng hỏi đáp Text-to-SQL qua API. Không gọi model thật: llm.call_llm được giả lập."""
 import pytest
 from fastapi.testclient import TestClient
 
-from app.backend import llm
+from app.backend import config, llm, prompt
 from app.backend.main import app
 
 client = TestClient(app)
@@ -13,206 +13,135 @@ def no_real_llm(monkeypatch):
     """Không bao giờ gọi model thật trong test; ca nào cần thì tự giả lập."""
     def offline(*a, **k):
         raise llm.LLMError('test: không gọi model thật')
-    monkeypatch.setattr(llm, 'complete', offline)
+    monkeypatch.setattr(llm, 'call_llm', offline)
 
 
-def login(username, password):
-    r = client.post('/api/login', json={'username': username, 'password': password})
-    assert r.status_code == 200, r.text
-    return {'Authorization': 'Bearer ' + r.json()['token']}
+def fake_llm(sql_reply, answer_reply='ok'):
+    """Giả lập LLM: lần gọi đầu (sinh SQL) trả sql_reply, lần sau (diễn giải) trả answer_reply."""
+    calls = []
+
+    def call(model, prompt_text, **kw):
+        calls.append((prompt_text, kw))
+        return sql_reply if len(calls) == 1 else answer_reply
+    call.calls = calls
+    return call
 
 
-@pytest.fixture(scope='module')
-def admin():
-    return login('admin', 'admin123')
+def model_id(name='Qwen2.5-Coder'):
+    return next(m['id'] for m in client.get('/api/models').json() if m['name'] == name)
 
 
-@pytest.fixture(scope='module')
-def board():
-    return login('thuquy', 'thuquy123')
+def ask(**body):
+    return client.post('/api/ask', json={'model_id': model_id(), **body}).json()
 
 
-@pytest.fixture(scope='module')
-def member():
-    return login('thanhvien', 'thanhvien123')
-
-
-def run_id(headers, model='GPT-3.5-Turbo', config='evidence'):
-    runs = client.get('/api/benchmark/runs', headers=headers).json()
-    return next(r['id'] for r in runs if r['model_name'] == model and r['config'] == config)
-
-
-def finance_question(headers):
-    qs = client.get('/api/dev-questions', headers=headers).json()
-    return next(q['id'] for q in qs if 'expense' in q['question'].lower() or 'spent' in q['question'].lower())
-
-
-# ---- UC01 ----
-
-def test_login_wrong_password():
-    assert client.post('/api/login', json={'username': 'admin', 'password': 'x'}).status_code == 401
-
-
-def test_requires_login():
-    assert client.get('/api/history').status_code == 401
-
-
-# ---- UC02 (phát lại) ----
-
-def test_replay_board_returns_result_and_gold(board, conn):
-    rid = run_id(board)
-    qid = client.get('/api/dev-questions', headers=board).json()[0]['id']
-    r = client.post('/api/ask', headers=board, json={'mode': 'replay', 'run_id': rid, 'dev_question_id': qid})
-    body = r.json()
-    assert r.status_code == 200 and body['status'] in ('EXECUTED', 'EXEC_ERROR')
-    expected = conn.execute('SELECT is_correct FROM benchmark_item WHERE run_id = ? AND question_id = ?',
-                            (rid, qid)).fetchone()[0]
-    assert body['is_correct'] == expected and body['gold_sql']
-
-
-def test_member_finance_question_rejected_and_logged(member, conn):
-    qid = finance_question(member)
-    r = client.post('/api/ask', headers=member,
-                    json={'mode': 'replay', 'run_id': run_id(member), 'dev_question_id': qid}).json()
-    assert r['status'] == 'REJECTED_PERMISSION'
-    row = conn.execute('SELECT status FROM query_log WHERE id = ?', (r['log_id'],)).fetchone()
-    assert row['status'] == 'REJECTED_PERMISSION'  # BR04
-
-
-def test_live_role_schema(member, monkeypatch):
-    seen = {}
-
-    def fake_generate(model, prompt_text, timeout_s=120):
-        seen['prompt'] = prompt_text
-        return "SELECT COUNT(*) FROM event WHERE type = 'Meeting'"
-
-    def fake_complete(model, prompt_text, **kw):
-        seen['answer_prompt'] = prompt_text
-        return 'Câu lạc bộ đã tổ chức 18 buổi họp.'
-
-    monkeypatch.setattr(llm, 'generate_sql', fake_generate)
-    monkeypatch.setattr(llm, 'complete', fake_complete)
-    r = client.post('/api/ask', headers=member,
-                    json={'mode': 'live', 'model_id': 1, 'question': 'How many meeting events are there?'}).json()
+def test_free_text_question(monkeypatch):
+    llm_fake = fake_llm("```sql\nSELECT COUNT(*) FROM event WHERE type = 'Meeting'\n```",
+                        'Câu lạc bộ đã tổ chức 18 buổi họp.')
+    monkeypatch.setattr(llm, 'call_llm', llm_fake)
+    r = ask(question='How many meeting events are there?')
     assert r['status'] == 'EXECUTED' and r['rows'][0][0] > 0
-    assert 'External Knowledge' not in seen['prompt']  # không evidence, không còn từ điển nghiệp vụ
-    assert 'expense' not in seen['prompt']  # thành viên không thấy bảng tài chính
-    # UC02f: câu trả lời do model diễn giải, dựa trên đúng kết quả đã thực thi
+    assert r['sql'] == "SELECT COUNT(*) FROM event WHERE type = 'Meeting'"
+    assert 'External Knowledge' not in r['prompt'] and 'CREATE TABLE "expense"' in r['prompt']
     assert r['answer'] == 'Câu lạc bộ đã tổ chức 18 buổi họp.' and r['answer_source'] == 'llm'
-    assert str(r['rows'][0][0]) in seen['answer_prompt']
+    assert str(r['rows'][0][0]) in llm_fake.calls[1][0]  # prompt diễn giải chứa kết quả thật
+    assert r['is_correct'] is None and r['gold_sql'] is None
 
 
-def test_live_answer_falls_back_to_template(member, monkeypatch):
-    monkeypatch.setattr(llm, 'generate_sql', lambda *a, **k: "SELECT COUNT(*) FROM event WHERE type = 'Meeting'")
-    r = client.post('/api/ask', headers=member,
-                    json={'mode': 'live', 'model_id': 1, 'question': 'How many meetings?'}).json()
-    assert r['status'] == 'EXECUTED' and r['answer_source'] == 'template'
-    assert r['answer'] == f"Kết quả: {r['rows'][0][0]}."
+def test_free_text_with_evidence(monkeypatch):
+    monkeypatch.setattr(llm, 'call_llm', fake_llm('```sql\nSELECT 1\n```'))
+    r = ask(question='x', evidence='meeting refers to type = "Meeting"')
+    assert '-- External Knowledge: meeting refers to type = "Meeting"' in r['prompt']
 
 
-def test_replay_answer_is_offline_and_logged(board, conn):
-    qid = client.get('/api/dev-questions', headers=board).json()[0]['id']
-    r = client.post('/api/ask', headers=board,
-                    json={'mode': 'replay', 'run_id': run_id(board), 'dev_question_id': qid}).json()
-    if r['status'] == 'EXECUTED':
-        assert r['answer'] and r['answer_source'] == 'template'
-        logged = conn.execute('SELECT answer FROM query_log WHERE id = ?', (r['log_id'],)).fetchone()[0]
-        assert logged == r['answer']
+def test_dev_question_correct(monkeypatch, conn):
+    gold = conn.execute('SELECT gold_sql FROM dev_question WHERE id = 1379').fetchone()[0]
+    monkeypatch.setattr(llm, 'call_llm', fake_llm(f'```sql\n{gold}\n```'))
+    r = ask(dev_question_id=1379)
+    assert r['status'] == 'EXECUTED' and r['is_correct'] == 1 and r['gold_sql'] == gold
+    assert r['evidence_used'] and '-- External Knowledge:' in r['prompt']
 
 
-def test_live_llm_failure_logged(member, monkeypatch):
-    def boom(*a, **k):
-        raise llm.LLMError('Lỗi gọi model: connection refused')
-
-    monkeypatch.setattr(llm, 'generate_sql', boom)
-    r = client.post('/api/ask', headers=member, json={'mode': 'live', 'model_id': 2, 'question': 'x?'}).json()
-    assert r['status'] == 'FAILED_GENERATION' and r['log_id']
+def test_dev_question_without_evidence(monkeypatch):
+    monkeypatch.setattr(llm, 'call_llm', fake_llm('```sql\nSELECT 1\n```'))
+    r = ask(dev_question_id=1379, use_evidence=False)
+    assert r['evidence_used'] is None and 'External Knowledge' not in r['prompt'] and r['is_correct'] == 0
 
 
-def test_live_unsafe_sql_rejected(admin, monkeypatch):
-    monkeypatch.setattr(llm, 'generate_sql', lambda *a, **k: 'DELETE FROM member')
-    r = client.post('/api/ask', headers=admin, json={'mode': 'live', 'model_id': 1, 'question': 'xoá hết'}).json()
-    assert r['status'] == 'REJECTED_UNSAFE'
-
-
-# ---- UC03, UC04, UC05, UC10 ----
-
-def test_history_feedback_export(board):
-    rid = run_id(board)
-    qid = client.get('/api/dev-questions', headers=board).json()[1]['id']
-    log_id = client.post('/api/ask', headers=board,
-                         json={'mode': 'replay', 'run_id': rid, 'dev_question_id': qid}).json()['log_id']
-    hist = client.get('/api/history', headers=board).json()
-    assert hist[0]['id'] == log_id
-    assert client.post('/api/feedback', headers=board,
-                       json={'query_log_id': log_id, 'rating': 1, 'comment': 'ok'}).status_code == 200
-    if hist[0]['status'] == 'EXECUTED':
-        r = client.get(f'/api/export/{log_id}', headers=board)
-        assert r.status_code == 200 and r.headers['content-type'].startswith('text/csv')
-
-
-def test_member_cannot_export_or_see_logs(member):
-    assert client.get('/api/export/1', headers=member).status_code == 403
-    assert client.get('/api/logs', headers=member).status_code == 403
-
-
-def test_admin_logs_stats(admin):
-    body = client.get('/api/logs', headers=admin).json()
-    assert body['rows'] and {s['status'] for s in body['stats']} >= {'REJECTED_PERMISSION'}
-
-
-# ---- GPT-3.5-Turbo đi đúng luồng benchmark openai_request.py ----
-
-def test_gpt35_live_matches_openai_request(admin, monkeypatch, conn):
-    import openai_request
-    from app.backend import config
-
-    seen = {}
-
-    def fake_complete(model, prompt_text, **kw):
-        if 'sql_kw' not in seen:  # lần gọi đầu: sinh SQL; lần sau: diễn giải câu trả lời
-            seen['sql_prompt'], seen['sql_kw'] = prompt_text, kw
-            return "COUNT(*) FROM event WHERE type = 'Meeting'"  # model viết tiếp sau "SELECT "
-        return 'ok'
-
-    monkeypatch.setattr(llm, 'complete', fake_complete)
+def test_prompt_matches_benchmark_ollama(monkeypatch, conn):
+    import ollama_request
+    monkeypatch.setattr(llm, 'call_llm', fake_llm('```sql\nSELECT 1\n```'))
     q = conn.execute('SELECT * FROM dev_question WHERE id = 1379').fetchone()
-    r = client.post('/api/ask', headers=admin,
-                    json={'mode': 'live', 'model_id': 1, 'dev_question_id': 1379}).json()
-    expected = openai_request.generate_combined_prompts_one(config.SOURCE_DB, q['question'], q['evidence'])
-    assert seen['sql_prompt'] == expected  # prompt giống hệt lúc benchmark (evidence nguyên văn)
-    assert seen['sql_kw']['max_tokens'] == 256 and seen['sql_kw']['stop'] == ['--', '\n\n', ';', '#']
+    r = ask(dev_question_id=1379)
+    assert r['prompt'] == ollama_request.generate_combined_prompts_one(config.SOURCE_DB, q['question'], q['evidence'])
+    assert prompt.build_schema_part() == ollama_request.generate_schema_prompt(config.SOURCE_DB)
+
+
+def test_gpt35_matches_openai_request(monkeypatch, conn):
+    import openai_request
+    llm_fake = fake_llm("COUNT(*) FROM event WHERE type = 'Meeting'")  # model viết tiếp sau "SELECT "
+    monkeypatch.setattr(llm, 'call_llm', llm_fake)
+    q = conn.execute('SELECT * FROM dev_question WHERE id = 1379').fetchone()
+    r = client.post('/api/ask', json={'model_id': model_id('GPT-3.5-Turbo'), 'dev_question_id': 1379}).json()
+    sql_prompt, sql_kw = llm_fake.calls[0]
+    assert sql_prompt == openai_request.generate_combined_prompts_one(config.SOURCE_DB, q['question'], q['evidence'])
+    assert sql_kw == {'max_tokens': 256, 'stop': ['--', '\n\n', ';', '#']}
     assert r['sql'] == "SELECT COUNT(*) FROM event WHERE type = 'Meeting'"  # openai_request.extract_sql
     assert r['status'] == 'EXECUTED'
 
 
-# ---- UC07, UC08, UC09, UC11 ----
-
-def test_model_config_admin_only(admin, member):
-    body = {'model_tag': 'qwen2.5-coder:7b', 'base_url': 'http://localhost:11434/v1', 'is_active': True}
-    assert client.put('/api/models/4', headers=member, json=body).status_code == 403
-    assert client.put('/api/models/4', headers=admin, json=body).status_code == 200
-
-
-def test_benchmark_import_validates(admin):
-    assert client.post('/api/benchmark/import', headers=admin, json={'x': 1}).status_code == 422
-    bad = {'questions': [], 'runs': [{'model': 'Không có', 'config': 'evidence', 'source': 's',
-                                      'total': 1, 'items': []}]}
-    assert client.post('/api/benchmark/import', headers=admin, json=bad).status_code == 422
+RAW_OUTPUTS = [
+    "```sql\nSELECT COUNT(*) FROM event;\n```",
+    "<think>đếm số sự kiện</think>\n```sql\nSELECT COUNT(*) FROM event\n```",
+    "```sql\nSELECT name FROM member WHERE x = 1",   # khối ```sql bị cắt cụt
+    "SELECT COUNT(*) FROM event; -- giải thích",
+    "COUNT(*) FROM event",                          # GPT-3.5 viết tiếp sau "SELECT "
+]
 
 
-def test_benchmark_summary(board, member):
-    s = client.get('/api/benchmark/summary', headers=board).json()
-    assert len(s) == 12 and all(set(r['levels']) == {'simple', 'moderate', 'challenging'} for r in s)
-    assert client.get('/api/benchmark/summary', headers=member).status_code == 403
+@pytest.mark.parametrize('raw', RAW_OUTPUTS)
+def test_extract_sql_matches_benchmark(raw):
+    import ollama_request
+    import openai_request
+    assert llm.extract_sql('ollama', raw) == ollama_request.extract_sql(raw)
+    assert llm.extract_sql('openai', raw) == openai_request.extract_sql(raw)
 
 
-def test_user_management(admin, member):
-    assert client.get('/api/users', headers=member).status_code == 403
-    r = client.post('/api/users', headers=admin,
-                    json={'username': 'banchunhiem', 'full_name': 'BCN', 'role': 'board', 'password': 'bcn123'})
-    assert r.status_code == 200
-    login('banchunhiem', 'bcn123')
-    me = client.get('/api/me', headers=admin).json()
-    assert client.put(f"/api/users/{me['id']}", headers=admin,
-                      json={'username': 'admin', 'full_name': 'x', 'role': 'member'}).status_code == 422
+def test_answer_falls_back_to_template(monkeypatch):
+    calls = []
+
+    def sql_then_fail(model, prompt_text, **kw):
+        calls.append(1)
+        if len(calls) == 1:
+            return "```sql\nSELECT COUNT(*) FROM event WHERE type = 'Meeting'\n```"
+        raise llm.LLMError('model lỗi khi diễn giải')
+
+    monkeypatch.setattr(llm, 'call_llm', sql_then_fail)
+    r = ask(question='How many meetings?')
+    assert r['status'] == 'EXECUTED' and r['answer_source'] == 'template'
+    assert r['answer'] == f"Kết quả: {r['rows'][0][0]}."
+
+
+def test_llm_failure():
+    r = ask(question='x?')
+    assert r['status'] == 'FAILED_GENERATION' and 'không gọi model thật' in r['error'] and r['sql'] is None
+
+
+def test_no_sql_generated(monkeypatch):
+    monkeypatch.setattr(llm, 'call_llm', fake_llm('```sql\n```'))
+    assert ask(question='x')['status'] == 'FAILED_GENERATION'
+
+
+@pytest.mark.parametrize('sql', ['DELETE FROM member', 'DROP TABLE event', 'SELECT * FROM no_such_table'])
+def test_bad_sql_is_exec_error(monkeypatch, sql):
+    monkeypatch.setattr(llm, 'call_llm', fake_llm(f'```sql\n{sql}\n```'))
+    assert ask(question='x')['status'] == 'EXEC_ERROR'  # CSDL mở chỉ đọc
+
+
+def test_ask_requires_question():
+    assert client.post('/api/ask', json={'model_id': 1}).status_code == 422
+
+
+def test_dev_questions_loaded_from_dev_json():
+    qs = client.get('/api/dev-questions').json()
+    assert len(qs) == 158 and qs[0]['id'] == 1312 and qs[-1]['id'] == 1469

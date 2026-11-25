@@ -3,17 +3,20 @@
 Dự án gồm hai phần, cùng dựa trên bài báo **"Can LLM Already Serve as A Database Interface? A BIg Bench for Large-Scale Database Grounded Text-to-SQLs" (BIRD-SQL, NeurIPS 2023)** — https://arxiv.org/abs/2305.03111:
 
 1. **Khảo nghiệm lại BIRD-SQL** (đồ án môn Hệ thống CSDL tiên tiến): giữ nguyên prompt và bộ chấm của bài báo, thay các model đã ngừng hoạt động bằng model hiện tại; thêm thí nghiệm chuẩn hoá evidence (Gap 3). Nhật ký chi tiết: [PROJECT_LOG.md](PROJECT_LOG.md).
-2. **ClubQuery** (đồ án môn Phân tích thiết kế hệ thống thông tin): hệ thống hỏi đáp dữ liệu câu lạc bộ sinh viên bằng ngôn ngữ tự nhiên trên CSDL `student_club` của BIRD, có phân quyền, nhật ký, từ điển nghiệp vụ, dashboard benchmark. Báo cáo: [docs/pttk/BAO_CAO.docx](docs/pttk/BAO_CAO.docx) (nguồn Markdown: [docs/pttk/BAO_CAO.md](docs/pttk/BAO_CAO.md)).
+2. **ClubQuery** (đồ án môn Phân tích thiết kế hệ thống thông tin): hệ thống thông tin quản lý câu lạc bộ sinh viên (thành viên, sự kiện, điểm danh, ngân sách, khoản chi có quy trình duyệt, khoản thu, báo cáo) kèm hỏi đáp dữ liệu bằng ngôn ngữ tự nhiên; dữ liệu mồi là CSDL `student_club` của BIRD. Có 4 vai trò (Chủ nhiệm, Thủ quỹ, Ban sự kiện, Quản trị) dùng chung một ma trận quyền, nhật ký thay đổi, nhật ký truy vấn; hỏi đáp kèm tri thức ngoài (*evidence* của BIRD, tự nhập hoặc lấy từ 158 câu hỏi mẫu BIRD) và từ điển thuật ngữ. Giao diện ứng dụng bằng tiếng Anh. Báo cáo: [docs/pttk/BAO_CAO.docx](docs/pttk/BAO_CAO.docx) (nguồn Markdown: [docs/pttk/BAO_CAO.md](docs/pttk/BAO_CAO.md)).
 
 ## Cấu trúc
 
 ```
 app/                           # ClubQuery
-  backend/                     #   FastAPI: main.py (API, phân quyền), service.py (luồng hỏi đáp),
-                               #   guard.py (chỉ SELECT, authorizer theo vai trò, timeout), prompt.py,
-                               #   llm.py, answer.py (diễn giải câu trả lời), appdb.py (app.sqlite)
-  frontend/                    #   index.html, app.js, style.css
-  scripts/per_db_ex.py         #   chấm EX theo CSDL bằng evaluation.py gốc -> dữ liệu phát lại
+  backend/                     #   FastAPI: main.py (đăng nhập, hỏi đáp, lịch sử, model, tài khoản, nhật ký truy vấn),
+                               #   club_api.py (thành viên, sự kiện, điểm danh, ngân sách, khoản chi + duyệt, khoản thu,
+                               #   tổng quan, báo cáo, từ điển, nhật ký thay đổi), deps.py (phiên, kiểm tra quyền),
+                               #   config.py (vai trò, ma trận quyền), service.py (luồng hỏi đáp), guard.py (chỉ SELECT,
+                               #   authorizer theo vai trò, timeout), prompt.py, llm.py, answer.py, appdb.py (2 CSDL)
+  frontend/                    #   giao diện một trang (HTML, JS, CSS)
+  data/                        #   club.sqlite (dữ liệu CLB) và app.sqlite (dữ liệu ứng dụng) — tự tạo lần chạy đầu
+  scripts/                     #   công cụ của phần nghiên cứu (per_db_ex.py: EX theo CSDL; thống kê theo loại SQL)
   tests/                       #   pytest
 docs/pttk/                     # báo cáo, diagram PlantUML (.puml + .png), ảnh màn hình
 src/DAMO-ConvAI/bird/          # phần BIRD lấy từ AlibabaResearch/DAMO-ConvAI (MIT License)
@@ -46,6 +49,8 @@ python -m venv venv
 
 ### Bước 3 — Tải bộ dev của BIRD (chứa CSDL `student_club`)
 
+ClubQuery dùng `student_club.sqlite` làm dữ liệu mồi: lần chạy đầu, app chép nó thành `app\data\club.sqlite` (file gốc không bao giờ bị sửa), và nạp 158 câu hỏi `student_club` kèm evidence từ `dev.json` làm câu hỏi mẫu BIRD trên màn Ask AI.
+
 1. Vào https://bird-bench.github.io/, mục **Dev Set**, tải file zip.
 2. Giải nén vào `src\dev` (bên trong có thư mục `dev_20240627`).
 3. Chép các file vào đúng chỗ:
@@ -70,52 +75,44 @@ Test-Path "$BIRD\data\dev_databases\student_club\student_club.sqlite"
 .\venv\Scripts\python -c "import json;print(sum(q['db_id']=='student_club' for q in json.load(open(r'src\DAMO-ConvAI\bird\data\dev.json',encoding='utf-8'))))"
 ```
 
-### Bước 4 — Khoá API (chỉ cần cho chế độ hỏi trực tiếp)
+### Bước 4 — Model cho hỏi đáp
 
-Tạo file `.env` ở thư mục gốc:
+Các chức năng quản lý không cần model. Hỏi đáp cần **một** trong hai:
+
+- **Ollama** (model mặc định `Qwen2.5-Coder`): cài Ollama, chạy `ollama serve` và `ollama pull qwen2.5-coder:7b`.
+- **Groq** (dịch vụ đám mây): thêm khoá vào file `.env` ở thư mục gốc, rồi chọn model GPT-OSS-20B trên màn **Ask AI** (hoặc đặt làm mặc định ở **Administration → AI models**):
 
 ```
-OPEN_AI_KEY=sk-...      # model GPT-3.5-Turbo
-GROQ_API_KEY=...        # tuỳ chọn, model GPT-OSS-20B (Groq)
+GROQ_API_KEY=...        # model GPT-OSS-20B (Groq)
 ```
 
-Chế độ **phát lại** không cần khoá và không cần mạng.
+Ứng dụng không dùng dịch vụ OpenAI; gói Python `openai` chỉ là thư viện client cho API Chat Completions của Ollama/Groq.
 
-### Bước 5 — Chấm điểm và tạo dữ liệu phát lại
+### Bước 5 — (Tuỳ chọn) Kiểm thử
 
 ```powershell
-.\venv\Scripts\python app\scripts\per_db_ex.py
+$env:PYTHONIOENCODING = "utf-8"
+.\venv\Scripts\python -m pytest app\tests -q      # mong đợi: 68 passed (không gọi model thật, dùng CSDL tạm)
 ```
 
-Script chấm 12 lượt (4 model × 3 cấu hình) × 158 câu bằng `evaluation.py` gốc, rồi ghi ra:
-
-- `app\data\benchmark_student_club.json`: dữ liệu cho chế độ phát lại và dashboard.
-- `docs\pttk\data\ex_student_club.csv`: bảng EX.
-
-### Bước 6 — (Tuỳ chọn) Kiểm thử
-
-```powershell
-.\venv\Scripts\python -m pytest app\tests -q      # mong đợi: 52 passed (không gọi model thật)
-```
-
-### Bước 7 — Chạy app
+### Bước 6 — Chạy app
 
 ```powershell
 .\venv\Scripts\python -m uvicorn app.backend.main:app --port 8000
 ```
 
-Mở http://127.0.0.1:8000. Lần chạy đầu, app tự tạo `app\data\app.sqlite`: tài khoản demo, model, từ điển, và nạp dữ liệu từ Bước 5.
+Mở http://127.0.0.1:8000. Lần chạy đầu, app tự tạo `app\data\club.sqlite` (chép từ `student_club.sqlite`) và `app\data\app.sqlite` (tài khoản demo, model, từ điển thuật ngữ).
 
 | Tài khoản | Mật khẩu | Vai trò |
 |---|---|---|
-| `thuquy` | `thuquy123` | Ban chủ nhiệm: xem được tài chính, dashboard, xuất CSV |
-| `thanhvien` | `thanhvien123` | Thành viên: câu hỏi về tài chính, email, số điện thoại bị chặn |
-| `admin` | `admin123` | Quản trị: nhật ký, model, tài khoản, nhập benchmark |
+| `chunhiem` | `chunhiem123` | Chủ nhiệm (President): thành viên (thấy email, SĐT), sự kiện, điểm danh, **duyệt chi**, từ điển, nhật ký thay đổi |
+| `thuquy` | `thuquy123` | Thủ quỹ (Treasurer): ngân sách, **đề xuất chi**, khoản thu |
+| `bansukien` | `bansukien123` | Ban sự kiện (Event team): sự kiện, điểm danh; không xem tài chính |
+| `admin` | `admin123` | Quản trị hệ thống (System admin): tài khoản, model, nhật ký truy vấn, từ điển; xem tài chính |
 
-Hai chế độ hỏi đáp:
+Giao diện bằng tiếng Anh. Các module: Dashboard, Ask AI, Question history, Members, Events & attendance, Finance (budgets, expenses, income), Reports, Glossary, Change log, Administration. Mọi thay đổi dữ liệu nghiệp vụ được ghi vào Change log.
 
-- **Phát lại benchmark:** chọn lượt benchmark và câu hỏi mẫu, bấm **Hỏi**. Dùng SQL model đã sinh lúc benchmark, kèm đáp án chuẩn và nhãn đúng/sai.
-- **Hỏi trực tiếp:** chọn model GPT-3.5-Turbo, gõ câu hỏi (tiếng Anh cho kết quả ổn định nhất), bấm **Hỏi**. Model sinh SQL; hệ thống kiểm tra rồi chạy SQL trên `student_club.sqlite` ở chế độ chỉ đọc; model diễn giải kết quả thành câu tiếng Việt.
+**Ask AI (hỏi đáp):** gõ câu hỏi tiếng Anh, tuỳ chọn thêm gợi ý vào ô **External knowledge (optional)**, hoặc bấm **BIRD sample questions (158)** để chọn một câu hỏi dev của BIRD (điền sẵn câu hỏi và evidence), rồi bấm **Ask**. Tri thức ngoài (nguyên văn, như evidence của BIRD) và các thuật ngữ trong **Glossary** xuất hiện trong câu hỏi được ghép vào dòng `-- External Knowledge` của prompt; model sinh SQL; hệ thống kiểm tra rồi chạy SQL trên `club.sqlite` ở chế độ chỉ đọc, chỉ với bảng/cột vai trò được xem; model diễn giải kết quả thành câu trả lời.
 
 Tắt app: **Ctrl+C** trong cửa sổ đang chạy server.
 
@@ -123,15 +120,15 @@ Tắt app: **Ctrl+C** trong cửa sổ đang chạy server.
 
 | Hiện tượng | Cách xử lý |
 |---|---|
-| Danh sách "Lượt benchmark" trống | Chưa chạy Bước 5. Chạy xong thì xoá `app\data\app.sqlite` rồi chạy lại app, hoặc nhập file JSON ở tab Quản trị |
-| "Chưa cấu hình khoá API" | Thiếu `OPEN_AI_KEY` trong `.env` |
-| Model Ollama báo "Lỗi gọi model" | Cài Ollama, chạy `ollama serve` và `ollama pull qwen2.5-coder:7b` (tương tự với `deepseek-coder-v2:16b`, `gemma3:12b`). Không dùng thì chọn GPT-3.5-Turbo |
+| "Không thấy CSDL nguồn … student_club.sqlite" | Chưa làm Bước 3 |
+| "Chưa cấu hình khoá API" | Chọn model Groq nhưng thiếu `GROQ_API_KEY` trong `.env` |
+| Model Ollama báo "Lỗi gọi model" | Chạy `ollama serve` và `ollama pull qwen2.5-coder:7b` (tương tự với `deepseek-coder-v2:16b`, `gemma3:12b`), hoặc chọn GPT-OSS-20B (Groq) khi đã có `GROQ_API_KEY` |
 | Cổng 8000 đang bận | Chạy với `--port 8001` |
-| Muốn làm mới dữ liệu ứng dụng | `.\venv\Scripts\python -m app.backend.appdb` (xoá nhật ký và tài khoản tạo thêm) |
+| Muốn làm mới dữ liệu | `.\venv\Scripts\python -m app.backend.appdb` — tạo lại cả `app.sqlite` và `club.sqlite` từ dữ liệu gốc (mất mọi thay đổi, nhật ký, tài khoản tạo thêm) |
 
 ## Khảo nghiệm BIRD-SQL (benchmark)
 
-Cần dữ liệu ở Bước 3, cùng các thư viện của script gọi model:
+Cần dữ liệu ở Bước 3, cùng các thư viện của script gọi model. Script GPT-3.5-Turbo (`openai_request.py`) cần `OPEN_AI_KEY=sk-...` trong `.env` (Groq: `GROQ_API_KEY`; Gemini: khoá tương ứng của script):
 
 ```powershell
 .\venv\Scripts\python -m pip install google-genai groq pandas backoff
@@ -143,6 +140,7 @@ Cần dữ liệu ở Bước 3, cùng các thư viện của script gọi model
   cd src/DAMO-ConvAI/bird/llm
   sh run/run_evaluation.sh
   ```
+- EX theo từng CSDL (mặc định `student_club`, 4 model × 3 cấu hình × độ khó): `.\venv\Scripts\python app\scripts\per_db_ex.py` → `docs\pttk\data\ex_student_club.csv`.
 - Gap 3 (chuẩn hoá evidence): xem [docs/gap3_runbook.md](docs/gap3_runbook.md).
 
 ## Báo cáo và diagram

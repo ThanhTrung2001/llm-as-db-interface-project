@@ -1,114 +1,74 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ClubQuery</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 11h14M9 16h9M9 21h11' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
+  <script>try { const t = localStorage.getItem('cq_theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
 </head>
 <body>
-  <!-- Màn đăng nhập (UC01) -->
+  <!-- UC01 Log in -->
   <section id="login-view" class="login" hidden>
-    <form id="login-form" class="card login-card">
-      <h1>ClubQuery</h1>
-      <p class="muted">Hỏi đáp dữ liệu câu lạc bộ sinh viên bằng ngôn ngữ tự nhiên</p>
-      <label>Tên đăng nhập <input name="username" autocomplete="username" required></label>
-      <label>Mật khẩu <input name="password" type="password" autocomplete="current-password" required></label>
-      <button type="submit" class="primary">Đăng nhập</button>
-      <p id="login-error" class="error" hidden></p>
-      <details class="muted small"><summary>Tài khoản demo</summary>
-        admin / admin123 (Quản trị) · thuquy / thuquy123 (Thủ quỹ) · thanhvien / thanhvien123 (Thành viên)
-      </details>
+    <div class="login-art">
+      <div class="brand big"><span class="logo">CQ</span><div><b>ClubQuery</b><small>Student club management</small></div></div>
+      <h1>Run your club and ask your data in plain English</h1>
+      <ul class="login-points">
+        <li>Members, events, attendance and finances in one place</li>
+        <li>Expenses go through a propose-and-approve workflow</li>
+        <li>Ask "How much did we spend on food this month?" without knowing SQL</li>
+        <li>Each role sees only the data it is allowed to, even when asking the AI</li>
+      </ul>
+    </div>
+    <form id="login-form" class="login-card" novalidate>
+      <h2>Log in</h2>
+      <p class="muted">Use the account your administrator gave you.</p>
+      <div class="field"><label for="lg-user">Username</label><input id="lg-user" name="username" autocomplete="username" required></div>
+      <div class="field"><label for="lg-pass">Password</label><input id="lg-pass" name="password" type="password" autocomplete="current-password" required></div>
+      <p id="login-error" class="form-error" hidden></p>
+      <button type="submit" class="btn primary block">Log in</button>
+      <div class="demo-accounts">
+        <p class="small muted">Demo accounts — click to fill in:</p>
+        <div class="demo-grid">
+          <button type="button" data-demo="chunhiem/chunhiem123"><b>President</b><small>chunhiem</small></button>
+          <button type="button" data-demo="thuquy/thuquy123"><b>Treasurer</b><small>thuquy</small></button>
+          <button type="button" data-demo="bansukien/bansukien123"><b>Event team</b><small>bansukien</small></button>
+          <button type="button" data-demo="admin/admin123"><b>Admin</b><small>admin</small></button>
+        </div>
+      </div>
     </form>
   </section>
 
-  <div id="app-view" hidden>
-    <header class="topbar">
-      <strong class="brand">ClubQuery</strong>
-      <nav id="tabs"></nav>
-      <span class="spacer"></span>
-      <span id="who" class="muted small"></span>
-      <button id="logout" class="ghost">Đăng xuất</button>
-    </header>
-
-    <main>
-      <!-- UC02 Đặt câu hỏi -->
-      <section data-tab="ask">
-        <div class="card">
-          <div class="seg" role="tablist">
-            <button data-mode="replay" class="on">Phát lại benchmark</button>
-            <button data-mode="live">Hỏi trực tiếp</button>
-          </div>
-          <p class="muted small" id="mode-hint"></p>
-
-          <div class="grid2">
-            <label id="run-field">Lượt benchmark <select id="run"></select></label>
-            <label id="model-field" hidden>Model <select id="model"></select></label>
-            <label>Câu hỏi mẫu (bộ dev BIRD, 158 câu)
-              <select id="devq"><option value="">— tự nhập câu hỏi —</option></select>
-            </label>
-          </div>
-          <label id="question-field" hidden>Câu hỏi
-            <textarea id="question" rows="2" placeholder="Ví dụ: How many meetings were held in 2020?"></textarea>
-          </label>
-          <div id="live-opts" class="row small" hidden>
-            <label class="check"><input type="checkbox" id="use-evidence" checked> Dùng evidence của câu mẫu</label>
-          </div>
-          <div id="devq-preview" class="muted small"></div>
-          <button id="ask-btn" class="primary">Hỏi</button>
+  <div id="app-view" class="shell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><span class="logo">CQ</span><div><b>ClubQuery</b><small>Student club management</small></div></div>
+      <nav id="nav" aria-label="Main navigation"></nav>
+      <div class="side-user">
+        <div class="who"><span id="me-avatar" class="avatar"></span><div><b id="me-name"></b><small id="me-role"></small></div></div>
+        <div class="side-actions">
+          <button class="icon-btn" id="btn-theme" title="Toggle light/dark theme" aria-label="Toggle light/dark theme"></button>
+          <button class="icon-btn" id="btn-password" title="Change password" aria-label="Change password"></button>
+          <button class="icon-btn" id="btn-logout" title="Log out" aria-label="Log out"></button>
         </div>
-        <div id="result"></div>
-      </section>
-
-      <!-- UC03 Lịch sử -->
-      <section data-tab="history" hidden>
-        <div class="card"><h2>Lịch sử câu hỏi của tôi</h2><div id="history-table"></div></div>
-      </section>
-
-      <!-- UC09 Dashboard benchmark -->
-      <section data-tab="bench" hidden>
-        <div class="card viz-root">
-          <h2>EX trên CSDL student_club (158 câu)</h2>
-          <p class="muted small">EX = tỉ lệ câu có kết quả thực thi trùng đáp án chuẩn. Chấm bằng
-            <code>evaluation.py</code> gốc của BIRD. Số của 3 model Ollama là <b>tạm thời</b>
-            (đo trước khi sửa lỗi prompt). Sai số với 158 câu khoảng ±8 điểm.</p>
-          <div id="legend" class="legend"></div>
-          <div id="chart" class="chart"></div>
-          <div id="tooltip" class="tooltip" hidden></div>
-          <h3>Bảng số liệu</h3>
-          <div id="bench-table"></div>
-        </div>
-      </section>
-
-      <!-- UC07, UC08, UC10, UC11 Quản trị -->
-      <section data-tab="admin" hidden>
-        <div class="card"><h2>Nhật ký truy vấn</h2>
-          <div id="log-stats" class="row"></div>
-          <label class="small">Lọc trạng thái <select id="log-filter"><option value="">Tất cả</option></select></label>
-          <div id="logs-table"></div>
-        </div>
-        <div class="card"><h2>Cấu hình model</h2><div id="models-table"></div></div>
-        <div class="card"><h2>Nhập kết quả benchmark</h2>
-          <p class="muted small">File JSON do <code>app/scripts/per_db_ex.py</code> sinh ra.
-            Lượt cùng model và cấu hình sẽ được thay thế.</p>
-          <div class="row"><input type="file" id="bench-file" accept=".json">
-            <button id="bench-import" class="primary">Nhập</button></div>
-          <p id="bench-msg" class="small"></p>
-        </div>
-        <div class="card"><h2>Tài khoản</h2>
-          <form id="user-form" class="row">
-            <input name="username" placeholder="Tên đăng nhập" required>
-            <input name="full_name" placeholder="Họ tên" required>
-            <input name="password" type="password" placeholder="Mật khẩu (≥ 6 ký tự)" required>
-            <select name="role"><option value="member">Thành viên</option><option value="board">Ban chủ nhiệm</option>
-              <option value="admin">Quản trị</option></select>
-            <button class="primary">Thêm</button>
-          </form>
-          <div id="users-table"></div>
-        </div>
-      </section>
-    </main>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn only-mobile" id="btn-menu" aria-label="Open menu"></button>
+        <div class="titles"><h1 id="page-title"></h1><p id="page-sub"></p></div>
+        <div class="page-actions" id="page-actions"></div>
+      </header>
+      <main id="view" tabindex="-1"></main>
+    </div>
   </div>
-  <script src="/static/app.js"></script>
+
+  <div id="modals"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

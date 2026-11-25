@@ -50,3 +50,5 @@ app/data/app.sqlite
 .playwright-cli/
 # chứa câu hỏi + gold SQL của BIRD (không phân phối lại) — sinh bằng app/scripts/per_db_ex.py
 app/data/benchmark_*.json
+# Bản làm việc của CLB, chép từ student_club.sqlite (dữ liệu BIRD, không phân phối lại)
+app/data/club.sqlite

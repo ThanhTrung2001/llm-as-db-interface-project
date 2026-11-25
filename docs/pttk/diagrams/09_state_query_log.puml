@@ -2,8 +2,8 @@
 !include _style.iuml
 title Biểu đồ trạng thái — một truy vấn (QueryLog)
 
-[*] --> Received : người dùng gửi câu hỏi
-Received --> Generated : model sinh SQL\n/ lấy SQL benchmark (phát lại)
+[*] --> Received : người dùng gửi câu hỏi\n[model tồn tại, đang bật]
+Received --> Generated : model sinh SQL
 Received --> FAILED_GENERATION : lỗi gọi model
 Generated --> Validated : check_select() hợp lệ
 Generated --> REJECTED_UNSAFE : nhiều câu lệnh,\nlệnh ghi / DDL
@@ -15,10 +15,9 @@ Validated --> TIMEOUT : quá 10 giây (BR02)
 Validated --> EXEC_ERROR : lỗi cú pháp, sai cột
 
 state EXECUTED {
-  [*] --> ChuaCham
-  ChuaCham --> DaCham : câu hỏi thuộc bộ dev\n/ so tập kết quả với gold
-  DaCham --> DaDanhGia : người dùng bấm Đúng / Sai
-  ChuaCham --> DaDanhGia : người dùng bấm Đúng / Sai
+  [*] --> ChuaDanhGia
+  ChuaDanhGia --> DaDanhGia : người hỏi bấm Đúng / Sai
+  DaDanhGia --> DaDanhGia : đổi đánh giá
 }
 
 EXECUTED --> [*] : ghi query_log

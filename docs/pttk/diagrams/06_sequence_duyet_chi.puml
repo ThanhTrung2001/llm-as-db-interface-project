@@ -1,0 +1,46 @@
+@startuml sequence_duyet_chi
+!include _style.iuml
+title Biểu đồ tuần tự — UC12 Duyệt khoản chi (một giao dịch trên hai CSDL)
+autonumber
+
+actor "Chủ nhiệm" as CN
+boundary "Màn Finance\n(tab Expenses)" as UI
+control "API POST /api/expenses/{id}/approve" as API
+control "deps.need('expense.approve')" as AUTH
+control "club_api._review()" as RV
+database "Kết nối appdb.connect()\nmain = app.sqlite\nclub = club.sqlite (ATTACH)" as DB
+
+CN -> UI : bấm "Approve" ở khoản chi chờ duyệt
+UI -> API : POST /api/expenses/{id}/approve {note}
+API -> AUTH : current_user() + kiểm tra quyền (BR05)
+alt vai trò không có expense.approve
+  AUTH --> UI : 403
+else có quyền
+  API -> RV : _review(conn, user, id, approve=True, note)
+  RV -> DB : SELECT expense JOIN budget, event, expense_review
+  DB --> RV : status, cost, budget_remaining, proposed_by
+  alt status ≠ PENDING
+    RV --> UI : 409 "This expense has already been reviewed"
+  else proposed_by = người duyệt (BR08)
+    RV --> UI : 409 "You cannot review an expense you proposed"
+  else cost > budget_remaining (BR07)
+    RV --> UI : 409 "Cannot approve: ... exceeds the remaining budget"
+  else hợp lệ
+    group Một giao dịch SQLite (tự BEGIN ở lệnh ghi đầu tiên)
+      RV -> DB : UPDATE club.expense SET approved = 'true'
+      RV -> DB : UPDATE main.expense_review SET reviewed_by, reviewed_at, note
+      RV -> DB : recompute_budget(): UPDATE club.budget\nSET spent = Σ khoản chi đã duyệt, remaining = amount − spent (BR06)
+      RV -> DB : INSERT main.audit_log (APPROVE, expense, id, tóm tắt) (BR10)
+      RV -> DB : COMMIT
+    end
+    RV --> API : {ok: true}
+    API --> UI : 200
+    UI -> API : GET /api/expenses, /api/budgets
+    UI --> CN : khoản chi APPROVED, ngân sách còn lại giảm
+  end
+end
+note over RV, DB
+  Có lỗi giữa chừng thì kết nối đóng mà không COMMIT,
+  SQLite huỷ toàn bộ thay đổi trên cả hai file.
+end note
+@enduml

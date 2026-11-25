@@ -9,26 +9,26 @@ MAX_LIST = 10
 
 def _fmt(v) -> str:
     if v is None:
-        return '(trống)'
+        return '(empty)'
     if isinstance(v, float):
         return f'{v:,.2f}'.rstrip('0').rstrip('.')
     return str(v)
 
 
 def template_answer(columns: list, rows: list) -> str:
-    """Câu trả lời dựng theo mẫu — không cần model, dùng cho chế độ phát lại và khi model lỗi."""
+    """Câu trả lời dựng theo mẫu — không cần model, dùng khi model lỗi ở bước diễn giải."""
     n = len(rows)
     if n == 0:
-        return 'Không có dữ liệu phù hợp với câu hỏi.'
+        return 'No matching data was found.'
     if n == 1 and len(columns) == 1:
-        return f'Kết quả: {_fmt(rows[0][0])}.'
+        return f'Result: {_fmt(rows[0][0])}.'
     if n == 1:
-        return 'Kết quả: ' + '; '.join(f'{c} = {_fmt(v)}' for c, v in zip(columns, rows[0])) + '.'
+        return 'Result: ' + '; '.join(f'{c} = {_fmt(v)}' for c, v in zip(columns, rows[0])) + '.'
     if len(columns) == 1:
         items = ', '.join(_fmt(r[0]) for r in rows[:MAX_LIST])
-        more = f' và {n - MAX_LIST} kết quả khác' if n > MAX_LIST else ''
-        return f'Có {n} kết quả: {items}{more}.'
-    return f'Có {n} dòng kết quả, xem bảng bên dưới.'
+        more = f' and {n - MAX_LIST} more' if n > MAX_LIST else ''
+        return f'{n} results: {items}{more}.'
+    return f'{n} rows returned — see the table below.'
 
 
 def llm_answer(model: dict, question: str, columns: list, rows: list) -> str:
@@ -59,7 +59,7 @@ def make_answer(question: str, columns: list, rows: list, model: dict = None) ->
               ('columns', columns, 'Tên cột kết quả'),
               ('rows', f'<{len(rows)} dòng, xem bước 4>', 'Kết quả SQL'),
               ('model', model and model.get('model_tag'),
-               'Model dùng để diễn giải; None (chế độ replay) → dựng câu theo mẫu')]
+               'Model dùng để diễn giải; None → dựng câu theo mẫu')]
     note = None
     if model is not None:
         try:

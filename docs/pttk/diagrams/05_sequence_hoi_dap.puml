@@ -1,0 +1,59 @@
+@startuml sequence_hoi_dap
+!include _style.iuml
+title Biểu đồ tuần tự — UC02 Hỏi đáp bằng ngôn ngữ tự nhiên
+autonumber
+
+actor "Người dùng" as U
+boundary "Màn Ask AI" as UI
+control "API /api/ask\n(main.py, deps.py)" as API
+control "service.ask()" as SV
+control "prompt" as PR
+participant "Dịch vụ LLM" as LLM
+control "guard" as G
+database "club.sqlite\n(mode=ro)" as CLUB
+database "app.sqlite" as APP
+
+opt chọn câu hỏi mẫu BIRD
+  U -> UI : bấm "BIRD sample questions", chọn một câu
+  UI -> API : GET /api/sample-questions
+  API -> APP : SELECT sample_question
+  UI --> U : điền câu hỏi + evidence vào ô "External knowledge"
+end
+U -> UI : nhập/sửa câu hỏi, tri thức ngoài (tuỳ chọn), bấm Ask
+UI -> API : POST /api/ask {question, model_id, evidence, sample_id}
+API -> API : current_user() kiểm tra token
+API -> SV : ask(conn, user, question, model_id, evidence, sample_id)
+SV -> APP : đọc model_config, glossary_term đang bật
+SV -> SV : match_glossary();\nbuild_knowledge(evidence nguyên văn; thuật ngữ đã normalize_pseudo_sql)
+SV -> PR : build_prompt(question, knowledge, role, provider)
+PR -> CLUB : đọc CREATE TABLE (cache theo vai trò)
+PR --> SV : prompt (schema đã lọc theo vai trò)
+SV -> LLM : chat.completions.create(prompt, temperature=0)
+alt gọi model lỗi
+  LLM --> SV : lỗi
+  SV -> SV : status = FAILED_GENERATION
+else thành công
+  LLM --> SV : văn bản có SQL
+  SV -> SV : extract_sql()
+  SV -> G : check_select(sql)
+  alt không phải đúng một câu SELECT
+    G --> SV : QueryRejected(REJECTED_UNSAFE / FAILED_GENERATION)
+  else hợp lệ
+    SV -> G : execute(sql, role)
+    G -> CLUB : mở mode=ro, set_authorizer(role),\nprogress handler 10 giây
+    alt đọc bảng/cột bị cấm
+      CLUB --> G : not authorized
+      G --> SV : QueryRejected(REJECTED_PERMISSION)
+    else thành công
+      CLUB --> G : các dòng kết quả
+      G --> SV : columns, rows
+      SV -> LLM : diễn giải bằng tiếng Anh (câu hỏi + tối đa 30 dòng)
+      LLM --> SV : câu trả lời (lỗi → câu theo mẫu)
+    end
+  end
+end
+SV -> APP : INSERT query_log (sample_id, evidence, trạng thái cuối) — BR04
+SV --> API : kết quả + log_id
+API --> UI : JSON
+UI --> U : câu trả lời, tri thức đã thêm, bảng dữ liệu,\nExternal knowledge sent to the model, SQL
+@enduml

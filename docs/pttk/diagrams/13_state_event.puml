@@ -1,0 +1,23 @@
+@startuml state_event
+!include _style.iuml
+title Biểu đồ trạng thái — Sự kiện (event.status)
+
+[*] --> Planning : tạo sự kiện\n(bắt buộc ở Planning)
+
+Planning --> Open : mở sự kiện
+Planning --> Closed : đóng (huỷ / bỏ qua)
+Open --> Closed : kết thúc sự kiện
+
+Planning --> [*] : xoá\n[chưa có điểm danh, ngân sách]
+Open --> [*] : xoá\n[chưa có điểm danh, ngân sách]
+Closed --> [*] : xoá\n[chưa có điểm danh, ngân sách]
+
+state Planning : lập ngân sách, đề xuất chi được;\nchưa điểm danh được
+state Open : điểm danh được (BR12);\nđề xuất chi được
+state Closed : không điểm danh, không đề xuất chi mới;\nkhông quay lại trạng thái trước (BR11)
+
+note right of Closed
+  Mỗi lần đổi trạng thái: đồng bộ budget.event_status
+  và ghi audit_log trong cùng giao dịch (BR10).
+end note
+@enduml

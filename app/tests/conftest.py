@@ -2,7 +2,10 @@ import os
 import tempfile
 
 # CSDL ứng dụng riêng cho test — phải đặt trước khi import app.backend.config
-os.environ['CLUBQUERY_APP_DB'] = os.path.join(tempfile.mkdtemp(prefix='clubquery_'), 'app_test.sqlite')
+_tmp = tempfile.mkdtemp(prefix='clubquery_')
+os.environ['CLUBQUERY_APP_DB'] = os.path.join(_tmp, 'app_test.sqlite')
+os.environ['CLUBQUERY_CLUB_DB'] = os.path.join(_tmp, 'club_test.sqlite')
+os.environ.setdefault('CLUBQUERY_TRACE', '0')
 
 import pytest  # noqa: E402
 

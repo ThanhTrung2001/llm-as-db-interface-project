@@ -3,46 +3,57 @@
 title Kiến trúc thành phần và triển khai
 set separator none
 
-node "Máy người dùng" {
-  component "Trình duyệt\nindex.html + app.js" as FE
+node "Máy người dùng (PC / điện thoại)" {
+  component "Trình duyệt\nindex.html + JS + CSS" as FE
 }
 
 node "Máy chủ ứng dụng (Python 3, uvicorn)" {
-  component "FastAPI\nmain.py (API + phân quyền)" as API
+  component "main.py\n(đăng nhập, hỏi đáp, lịch sử,\nmodel, tài khoản, nhật ký)" as API
+  component "club_api.py\n(thành viên, sự kiện, tài chính,\ntổng quan, báo cáo, từ điển, audit)" as CLUBAPI
+  component "deps.py\n(phiên, need(quyền) — BR05)" as DEPS
+  component "config.py\n(ma trận quyền)" as CFG
   component "service.py\n(điều phối UC02)" as SV
   component "prompt.py" as PR
   component "guard.py\n(BR01–BR03)" as G
-  component "llm.py" as LLMC
-  component "answer.py\n(diễn giải kết quả)" as ANS
-  component "Thư viện BIRD tái sử dụng\nextract_sql, normalize_pseudo_sql,\nevaluation.py" as BIRD
+  component "llm.py\n(client Chat Completions)" as LLMC
+  component "answer.py" as ANS
+  component "appdb.py\n(lược đồ, khởi tạo,\naudit, ATTACH)" as ADB
+  component "Mã BIRD tái sử dụng\nextract_sql, normalize_pseudo_sql" as BIRD
   database "app.sqlite" as APP
-  database "student_club.sqlite\n(mode=ro)" as SRC
-  component "per_db_ex.py\n(công cụ offline)" as TOOL
+  database "club.sqlite\n(CRUD: đọc ghi;\nhỏi đáp: mode=ro)" as CLUB
+  database "student_club.sqlite\n(BIRD, chỉ làm dữ liệu mồi)" as SRC
 }
 
-cloud "Dịch vụ LLM" {
-  component "OpenAI API" as OAI
+node "Máy chủ model (cùng máy hoặc máy có GPU)" {
+  component "Ollama (mặc định)\n/v1 Chat Completions" as OLL
+}
+cloud "Dịch vụ LLM đám mây (tuỳ chọn)" {
   component "Groq API" as GROQ
-}
-node "Máy có GPU (tuỳ chọn)" {
-  component "Ollama\n/v1 tương thích OpenAI" as OLL
+  component "OpenRouter API" as OR
 }
 
-FE --> API : HTTP(S) / JSON\nBearer token
+FE --> API : HTTP / JSON\nBearer token
+FE --> CLUBAPI : HTTP / JSON
+API --> DEPS
+CLUBAPI --> DEPS
+DEPS --> CFG
 API --> SV
-API --> APP
 SV --> PR
 SV --> G
 SV --> LLMC
 SV --> ANS
 ANS --> LLMC
 SV --> BIRD
-G --> SRC
-PR --> SRC
-SV --> APP
-LLMC --> OAI
-LLMC --> GROQ
-LLMC ..> OLL : tuỳ chọn
-TOOL --> BIRD
-TOOL ..> APP : file JSON → UC08
+LLMC --> BIRD
+G --> CFG
+PR --> CFG
+G --> CLUB : mode=ro
+PR --> CLUB : mode=ro
+DEPS --> ADB
+ADB --> APP
+ADB --> CLUB : ATTACH AS club
+SRC ..> CLUB : chép lần đầu chạy
+LLMC --> OLL : mặc định
+LLMC ..> GROQ : tuỳ chọn
+LLMC ..> OR : tuỳ chọn
 @enduml

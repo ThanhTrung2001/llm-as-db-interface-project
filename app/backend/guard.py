@@ -33,18 +33,18 @@ def check_select(sql: str) -> str:
     sql = (sql or '').strip()
     statements = [s for s in sqlparse.split(sql) if s.strip().strip(';').strip()]
     if not statements:
-        raise QueryRejected('FAILED_GENERATION', 'Model không sinh được câu truy vấn.')
+        raise QueryRejected('FAILED_GENERATION', 'The model did not produce a query.')
     if len(statements) > 1:
-        raise QueryRejected('REJECTED_UNSAFE', 'Chỉ cho phép một câu lệnh.')
+        raise QueryRejected('REJECTED_UNSAFE', 'Only a single statement is allowed.')
     stmt = statements[0].strip().rstrip(';').strip()
     words = re.findall(r'[A-Za-z_]+', sqlparse.format(stmt, strip_comments=True).upper())
     if not words:
-        raise QueryRejected('FAILED_GENERATION', 'Model không sinh được câu truy vấn.')
+        raise QueryRejected('FAILED_GENERATION', 'The model did not produce a query.')
     # "WITH ... DELETE" lọt qua đây sẽ bị authorizer chặn ở tầng engine
     if words[0] in WRITE_KEYWORDS:
-        raise QueryRejected('REJECTED_UNSAFE', 'Chỉ cho phép truy vấn đọc (SELECT).')
+        raise QueryRejected('REJECTED_UNSAFE', 'Only read queries (SELECT) are allowed.')
     if words[0] not in ('SELECT', 'WITH'):
-        raise QueryRejected('FAILED_GENERATION', 'Kết quả của model không phải câu SELECT.')
+        raise QueryRejected('FAILED_GENERATION', 'The model output is not a SELECT statement.')
     return stmt
 
 
@@ -68,7 +68,7 @@ def _authorizer(role: str, denied: list):
 
 
 def connect_readonly(db_path: str = None) -> sqlite3.Connection:
-    uri = pathlib.Path(db_path or config.SOURCE_DB).resolve().as_uri() + '?mode=ro'
+    uri = pathlib.Path(db_path or config.CLUB_DB).resolve().as_uri() + '?mode=ro'
     return sqlite3.connect(uri, uri=True, check_same_thread=False)
 
 
@@ -89,10 +89,10 @@ def execute(sql: str, role: str, timeout_s: float = None, db_path: str = None):
                 kind, what = denied[0]
                 if kind == 'permission':
                     raise QueryRejected('REJECTED_PERMISSION',
-                                        f'Vai trò của bạn không được truy cập dữ liệu "{what}".')
-                raise QueryRejected('REJECTED_UNSAFE', 'Chỉ cho phép truy vấn đọc (SELECT).')
+                                        f'Your role is not allowed to access "{what}".')
+                raise QueryRejected('REJECTED_UNSAFE', 'Only read queries (SELECT) are allowed.')
             if 'interrupted' in str(e):
-                raise QueryRejected('TIMEOUT', f'Truy vấn vượt quá {timeout_s:g} giây.')
+                raise QueryRejected('TIMEOUT', f'Query exceeded {timeout_s:g} seconds.')
             raise QueryRejected('EXEC_ERROR', str(e))
         columns = [d[0] for d in cur.description or []]
         return columns, rows

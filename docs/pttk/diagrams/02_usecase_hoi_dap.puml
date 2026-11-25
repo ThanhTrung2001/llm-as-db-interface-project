@@ -1,33 +1,37 @@
 @startuml usecase_hoi_dap
 !include _style.iuml
 left to right direction
-title Phân rã UC02 — Đặt câu hỏi bằng ngôn ngữ tự nhiên
+title Phân rã UC02 — Hỏi đáp bằng ngôn ngữ tự nhiên
 
-actor "Thành viên" as TV
+actor "Người dùng\n(mọi vai trò)" as ND
 actor "Dịch vụ LLM" as LLM <<hệ thống ngoài>>
 
 rectangle "ClubQuery" {
-  usecase "UC02 Đặt câu hỏi\nbằng ngôn ngữ tự nhiên" as UC02
-  usecase "UC02.1 Hỏi trực tiếp" as LIVE
-  usecase "UC02.2 Phát lại benchmark" as REPLAY
+  usecase "UC02 Hỏi đáp bằng\nngôn ngữ tự nhiên" as UC02
   usecase "UC02a Sinh SQL" as GEN
-  usecase "UC02b Kiểm tra an toàn\nvà quyền truy cập" as CHECK
-  usecase "UC02c Thực thi truy vấn chỉ đọc" as EXEC
-  usecase "UC02d Áp dụng thuật ngữ nghiệp vụ" as GLOSS
-  usecase "UC02e So sánh với đáp án chuẩn" as GOLD
+  usecase "UC02b Kiểm tra an toàn\n(một câu SELECT)" as CHECK
+  usecase "UC02c Thực thi chỉ đọc\ntheo quyền vai trò" as EXEC
+  usecase "UC02d Áp dụng thuật ngữ\ntừ điển" as GLOSS
+  usecase "UC02e Ghi nhật ký truy vấn" as LOG
   usecase "UC02f Diễn giải kết quả\nthành câu trả lời" as ANS
-  usecase "Ghi nhật ký truy vấn" as LOG
+  usecase "UC02g Nhập tri thức ngoài\n(External knowledge)" as EVID
+  usecase "UC02h Chọn câu hỏi mẫu BIRD\n(158 câu, kèm evidence)" as SAMPLE
+  usecase "UC04 Đánh giá câu trả lời" as UC04
+  usecase "UC05 Xuất kết quả CSV" as UC05
 }
 
-TV --> UC02
-LIVE -|> UC02
-REPLAY -|> UC02
-LIVE ..> GEN : <<include>>
+ND --> UC02
+UC02 ..> GEN : <<include>>
 UC02 ..> CHECK : <<include>>
 UC02 ..> EXEC : <<include>>
-UC02 ..> ANS : <<include>>
 UC02 ..> LOG : <<include>>
 GLOSS ..> GEN : <<extend>>\n[câu hỏi chứa thuật ngữ đang bật]
-GOLD ..> UC02 : <<extend>>\n[câu hỏi thuộc bộ dev BIRD]
+EVID ..> UC02 : <<extend>>\n[người dùng nhập gợi ý]
+SAMPLE ..> UC02 : <<extend>>\n[người dùng chọn câu mẫu]
+SAMPLE ..> EVID : <<include>>\n(điền evidence)
+ANS ..> UC02 : <<extend>>\n[thực thi thành công]
+UC04 ..> UC02 : <<extend>>
+UC05 ..> UC02 : <<extend>>\n[trạng thái EXECUTED]
 GEN --> LLM
+ANS --> LLM
 @enduml

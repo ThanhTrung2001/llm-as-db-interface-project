@@ -1,0 +1,60 @@
+@startwbs bfd
+!include _style.iuml
+title Biểu đồ phân rã chức năng (BFD) — ClubQuery
+<style>
+wbsDiagram {
+  node {
+    BackgroundColor #eaf2fc
+    LineColor #2a78d6
+    RoundCorner 8
+    Padding 6
+  }
+  :depth(0) {
+    BackgroundColor #2a78d6
+    FontColor #ffffff
+    FontStyle bold
+  }
+  :depth(1) {
+    BackgroundColor #fdf3dc
+    LineColor #c9a24a
+    FontStyle bold
+  }
+}
+</style>
+* ClubQuery — Quản lý CLB sinh viên\nvà hỏi đáp dữ liệu bằng ngôn ngữ tự nhiên
+** 1. Hệ thống
+*** 1.1 Đăng nhập, đăng xuất
+*** 1.2 Đổi mật khẩu
+*** 1.3 Xem quyền của vai trò
+** 2. Thành viên
+*** 2.1 Tra cứu thành viên\n(che email, SĐT nếu không có quyền)
+*** 2.2 Thêm, sửa thành viên
+*** 2.3 Xoá / cho nghỉ (Inactive)
+** 3. Sự kiện
+*** 3.1 Tra cứu sự kiện
+*** 3.2 Thêm, sửa, xoá sự kiện
+*** 3.3 Chuyển trạng thái\nPlanning → Open → Closed
+*** 3.4 Điểm danh
+** 4. Tài chính
+*** 4.1 Lập, sửa, xoá ngân sách
+*** 4.2 Đề xuất, sửa, huỷ khoản chi
+*** 4.3 Duyệt / từ chối khoản chi
+*** 4.4 Ghi, sửa, xoá khoản thu
+** 5. Tổng quan và báo cáo
+*** 5.1 Bảng tổng quan
+*** 5.2 Báo cáo tham dự
+*** 5.3 Báo cáo tài chính theo sự kiện
+** 6. Hỏi đáp dữ liệu
+*** 6.1 Đặt câu hỏi\n(sinh SQL, kiểm tra, thực thi, diễn giải)
+*** 6.2 Nhập tri thức ngoài (evidence)
+*** 6.3 Chọn câu hỏi mẫu BIRD
+*** 6.4 Xem lịch sử, hỏi lại
+*** 6.5 Đánh giá câu trả lời
+*** 6.6 Xuất kết quả CSV
+*** 6.7 Quản lý từ điển thuật ngữ
+** 7. Quản trị hệ thống
+*** 7.1 Quản lý tài khoản
+*** 7.2 Cấu hình model LLM
+*** 7.3 Nhật ký truy vấn
+*** 7.4 Nhật ký thay đổi dữ liệu
+@endwbs

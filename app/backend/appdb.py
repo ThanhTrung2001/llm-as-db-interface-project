@@ -1,12 +1,21 @@
-"""CSDL của ứng dụng (app.sqlite) — tách khỏi CSDL nguồn student_club (chỉ đọc)."""
+"""
+Hai CSDL của ClubQuery:
+  - app.sqlite  (main) : tài khoản, model, nhật ký truy vấn, đánh giá, từ điển, duyệt chi, nhật ký thay đổi.
+  - club.sqlite (club) : dữ liệu nghiệp vụ CLB, chép từ student_club.sqlite của BIRD lần đầu chạy.
+connect() ATTACH club.sqlite vào cùng kết nối để một thao tác nghiệp vụ (vd. duyệt chi: sửa expense,
+cập nhật budget, ghi expense_review và audit_log) nằm trong MỘT giao dịch.
+"""
 import hashlib
 import json
 import os
 import secrets
+import shutil
 import sqlite3
 from datetime import datetime
 
 from . import config
+
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS user_account (
@@ -14,60 +23,48 @@ CREATE TABLE IF NOT EXISTS user_account (
     username      TEXT NOT NULL UNIQUE,
     full_name     TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK (role IN ('member', 'board', 'admin')),
+    role          TEXT NOT NULL CHECK (role IN ('president', 'treasurer', 'event', 'admin')),
     is_active     INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS model_config (
     id          INTEGER PRIMARY KEY,
     name        TEXT NOT NULL UNIQUE,
-    provider    TEXT NOT NULL CHECK (provider IN ('openai', 'groq', 'openrouter', 'ollama')),
+    provider    TEXT NOT NULL CHECK (provider IN ('groq', 'openrouter', 'ollama')),
     model_tag   TEXT NOT NULL,
     base_url    TEXT,
     api_key_env TEXT,
-    is_active   INTEGER NOT NULL DEFAULT 1
+    is_active   INTEGER NOT NULL DEFAULT 1,
+    is_default  INTEGER NOT NULL DEFAULT 0
 );
-CREATE TABLE IF NOT EXISTS dev_question (
-    id         INTEGER PRIMARY KEY,          -- chỉ số câu hỏi trong dev.json
-    question   TEXT NOT NULL,
-    evidence   TEXT,
-    gold_sql   TEXT NOT NULL,
-    difficulty TEXT NOT NULL CHECK (difficulty IN ('simple', 'moderate', 'challenging'))
-);
-CREATE TABLE IF NOT EXISTS benchmark_run (
-    id          INTEGER PRIMARY KEY,
-    model_id    INTEGER NOT NULL REFERENCES model_config(id),
-    config      TEXT NOT NULL CHECK (config IN ('no_evidence', 'evidence', 'evidence_norm')),
-    source      TEXT NOT NULL,
-    note        TEXT,
-    ex          REAL NOT NULL,               -- EX trên student_club
-    full_dev_ex REAL,                        -- EX toàn dev (1534 câu) nếu có
-    imported_at TEXT NOT NULL,
-    UNIQUE (model_id, config)
-);
-CREATE TABLE IF NOT EXISTS benchmark_item (
-    run_id        INTEGER NOT NULL REFERENCES benchmark_run(id) ON DELETE CASCADE,
-    question_id   INTEGER NOT NULL REFERENCES dev_question(id),
-    predicted_sql TEXT NOT NULL,
-    is_correct    INTEGER NOT NULL,
-    PRIMARY KEY (run_id, question_id)
+CREATE TABLE IF NOT EXISTS glossary_term (
+    id         INTEGER PRIMARY KEY,
+    term       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    definition TEXT NOT NULL,
+    is_active  INTEGER NOT NULL DEFAULT 1,
+    updated_by INTEGER REFERENCES user_account(id),
+    updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS query_log (
-    id              INTEGER PRIMARY KEY,
-    user_id         INTEGER NOT NULL REFERENCES user_account(id),
-    question        TEXT NOT NULL,
-    mode            TEXT NOT NULL CHECK (mode IN ('live', 'replay')),
-    model_id        INTEGER REFERENCES model_config(id),
-    run_id          INTEGER REFERENCES benchmark_run(id),
-    dev_question_id INTEGER REFERENCES dev_question(id),
-    evidence_used   TEXT,
-    generated_sql   TEXT,
-    answer          TEXT,                    -- câu trả lời đã diễn giải (UC02f)
-    status          TEXT NOT NULL,
-    error           TEXT,
-    latency_ms      INTEGER NOT NULL,
-    row_count       INTEGER,
-    is_correct      INTEGER,
-    created_at      TEXT NOT NULL
+    id            INTEGER PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES user_account(id),
+    question      TEXT NOT NULL,
+    model_id      INTEGER REFERENCES model_config(id),
+    sample_id     INTEGER REFERENCES sample_question(id),  -- câu mẫu BIRD được chọn (nếu có)
+    evidence      TEXT,                      -- tri thức ngoài người dùng nhập / đi kèm câu mẫu
+    glossary_used TEXT,                      -- thuật ngữ trong từ điển đã ghép vào prompt
+    generated_sql TEXT,
+    answer        TEXT,
+    status        TEXT NOT NULL,
+    error         TEXT,
+    latency_ms    INTEGER NOT NULL,
+    row_count     INTEGER,
+    created_at    TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sample_question (  -- 158 câu hỏi dev của BIRD trên student_club (kèm evidence)
+    id         INTEGER PRIMARY KEY,          -- question_id trong dev.json
+    question   TEXT NOT NULL,
+    evidence   TEXT,
+    difficulty TEXT NOT NULL CHECK (difficulty IN ('simple', 'moderate', 'challenging'))
 );
 CREATE TABLE IF NOT EXISTS feedback (
     id           INTEGER PRIMARY KEY,
@@ -78,35 +75,63 @@ CREATE TABLE IF NOT EXISTS feedback (
     created_at   TEXT NOT NULL,
     UNIQUE (query_log_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS expense_review (   -- quy trình duyệt chi cho khoản chi lập trên hệ thống
+    expense_id  TEXT PRIMARY KEY,              -- = club.expense.expense_id
+    proposed_by INTEGER NOT NULL REFERENCES user_account(id),
+    proposed_at TEXT NOT NULL,
+    reviewed_by INTEGER REFERENCES user_account(id),
+    reviewed_at TEXT,
+    note        TEXT
+);
+CREATE TABLE IF NOT EXISTS audit_log (
+    id          INTEGER PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES user_account(id),
+    action      TEXT NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT')),
+    entity      TEXT NOT NULL,
+    entity_id   TEXT NOT NULL,
+    summary     TEXT NOT NULL,
+    detail      TEXT,                          -- JSON trước/sau
+    created_at  TEXT NOT NULL
+);
 """
 
 SEED_USERS = [
-    ('admin', 'Quản trị viên', 'admin123', 'admin'),
-    ('thuquy', 'Thủ quỹ CLB', 'thuquy123', 'board'),
-    ('thanhvien', 'Thành viên CLB', 'thanhvien123', 'member'),
+    ('chunhiem', 'Minh Anh Nguyen', 'chunhiem123', 'president'),
+    ('thuquy', 'Thu Ha Tran', 'thuquy123', 'treasurer'),
+    ('bansukien', 'Quoc Bao Le', 'bansukien123', 'event'),
+    ('admin', 'System Administrator', 'admin123', 'admin'),
 ]
 OLLAMA_V1 = 'http://localhost:11434/v1'
-SEED_MODELS = [
-    ('GPT-3.5-Turbo', 'openai', 'gpt-3.5-turbo', None, 'OPEN_AI_KEY'),
-    ('DeepSeek-Coder-V2', 'ollama', 'deepseek-coder-v2:16b', OLLAMA_V1, None),
-    ('Gemma3', 'ollama', 'gemma3:12b', OLLAMA_V1, None),
-    ('Qwen2.5-Coder', 'ollama', 'qwen2.5-coder:7b', OLLAMA_V1, None),
-    ('GPT-OSS-20B (Groq)', 'groq', 'openai/gpt-oss-20b', 'https://api.groq.com/openai/v1', 'GROQ_API_KEY'),
+SEED_MODELS = [  # (tên, provider, model_tag, base_url, api_key_env, mặc định)
+    ('Qwen2.5-Coder', 'ollama', 'qwen2.5-coder:7b', OLLAMA_V1, None, 1),
+    ('DeepSeek-Coder-V2', 'ollama', 'deepseek-coder-v2:16b', OLLAMA_V1, None, 0),
+    ('Gemma3', 'ollama', 'gemma3:12b', OLLAMA_V1, None, 0),
+    ('GPT-OSS-20B (Groq)', 'groq', 'openai/gpt-oss-20b', 'https://api.groq.com/openai/v1', 'GROQ_API_KEY', 0),
 ]
-# EX toàn dev đã đo (PROJECT_LOG.md mục 8, 8.1). Bỏ trống khi chưa có số chốt.
-FULL_DEV_EX = {
-    ('GPT-3.5-Turbo', 'no_evidence'): 31.23,
-    ('GPT-3.5-Turbo', 'evidence'): 47.78,
-    ('GPT-3.5-Turbo', 'evidence_norm'): 48.11,
-    ('DeepSeek-Coder-V2', 'evidence_norm'): 43.22,
-    ('Gemma3', 'evidence_norm'): 49.54,
-    ('Qwen2.5-Coder', 'evidence'): 53.85,
-    ('Qwen2.5-Coder', 'evidence_norm'): 54.17,
-}
+# Tri thức nghiệp vụ của CLB — chính là "evidence" trong bài báo BIRD, do CLB tự duy trì.
+SEED_GLOSSARY = [
+    ('full name', 'first_name and last_name of member'),
+    ('active member', "member.position <> 'Inactive'"),
+    ('officer', "member.position NOT IN ('Member', 'Inactive')"),
+    ('meeting', "event.type = 'Meeting'"),
+    ('upcoming event', "event.status IN ('Planning', 'Open')"),
+    ('dues', "income.source = 'Dues'"),
+    ('approved expense', "expense.approved = 'true'"),
+    ('pending expense', "expense.approved = 'pending'"),
+    ('remaining budget', 'budget.remaining'),
+    ('over budget', 'budget.remaining < 0'),
+    ('attendance', 'attendance links member (link_to_member) and event (link_to_event)'),
+]
 
 
 def now() -> str:
     return datetime.now().isoformat(timespec='seconds')
+
+
+def new_id() -> str:
+    """Khoá chính dạng của dữ liệu gốc (Airtable): 'rec' + 14 ký tự."""
+    alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    return 'rec' + ''.join(secrets.choice(alphabet) for _ in range(14))
 
 
 def hash_password(password: str, salt: str = None) -> str:
@@ -124,57 +149,69 @@ def connect() -> sqlite3.Connection:
     conn = sqlite3.connect(config.APP_DB, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
+    conn.execute('ATTACH DATABASE ? AS club', (config.CLUB_DB,))
     return conn
 
 
-def import_benchmark(conn: sqlite3.Connection, data: dict) -> int:
-    """UC08: nạp file benchmark (định dạng của app/scripts/per_db_ex.py). Trả về số lượt chạy."""
-    conn.executemany(
-        'INSERT OR REPLACE INTO dev_question (id, question, evidence, gold_sql, difficulty) VALUES (?,?,?,?,?)',
-        [(q['question_id'], q['question'], q['evidence'], q['gold_sql'], q['difficulty'])
-         for q in data['questions']])
-    for run in data['runs']:
-        model = conn.execute('SELECT id FROM model_config WHERE name = ?', (run['model'],)).fetchone()
-        if model is None:
-            raise ValueError(f'Model "{run["model"]}" chưa có trong cấu hình model')
-        conn.execute('DELETE FROM benchmark_run WHERE model_id = ? AND config = ?', (model['id'], run['config']))
-        run_id = conn.execute(
-            'INSERT INTO benchmark_run (model_id, config, source, note, ex, full_dev_ex, imported_at) '
-            'VALUES (?,?,?,?,?,?,?)',
-            (model['id'], run['config'], run['source'], run.get('note'), run['total'],
-             run.get('full_dev_ex', FULL_DEV_EX.get((run['model'], run['config']))), now())).lastrowid
-        conn.executemany(
-            'INSERT INTO benchmark_item (run_id, question_id, predicted_sql, is_correct) VALUES (?,?,?,?)',
-            [(run_id, it['question_id'], it['predicted_sql'], it['is_correct']) for it in run['items']])
-    conn.commit()
-    return len(data['runs'])
+def audit(conn, user: dict, action: str, entity: str, entity_id: str, summary: str,
+          before: dict = None, after: dict = None) -> None:
+    """Ghi nhật ký thay đổi (BR10). Gọi trong cùng giao dịch với thao tác nghiệp vụ."""
+    detail = json.dumps({'before': before, 'after': after}, ensure_ascii=False, default=str) \
+        if (before or after) else None
+    conn.execute('INSERT INTO audit_log (user_id, action, entity, entity_id, summary, detail, created_at) '
+                 'VALUES (?,?,?,?,?,?,?)', (user['id'], action, entity, entity_id, summary, detail, now()))
+
+
+def init_club_db(reset: bool = False) -> None:
+    os.makedirs(os.path.dirname(config.CLUB_DB), exist_ok=True)
+    if reset and os.path.exists(config.CLUB_DB):
+        os.remove(config.CLUB_DB)
+    if not os.path.exists(config.CLUB_DB):
+        if not os.path.exists(config.SOURCE_DB):
+            raise FileNotFoundError(f'Không thấy CSDL nguồn {config.SOURCE_DB} — xem README, Bước 3')
+        shutil.copyfile(config.SOURCE_DB, config.CLUB_DB)
+
+
+def load_sample_questions(conn) -> int:
+    """Nạp các câu hỏi dev của BIRD thuộc student_club (kèm evidence) làm câu hỏi mẫu."""
+    if not os.path.exists(config.DEV_JSON):
+        return 0
+    with open(config.DEV_JSON, encoding='utf-8') as f:
+        rows = [(q['question_id'], q['question'], q['evidence'] or None, q['difficulty'])
+                for q in json.load(f) if q['db_id'] == 'student_club']
+    conn.executemany('INSERT OR REPLACE INTO sample_question (id, question, evidence, difficulty) VALUES (?,?,?,?)',
+                     rows)
+    return len(rows)
 
 
 def init_db(reset: bool = False) -> None:
     os.makedirs(os.path.dirname(config.APP_DB), exist_ok=True)
-    if reset and os.path.exists(config.APP_DB):
-        os.remove(config.APP_DB)
+    init_club_db(reset)
+    if os.path.exists(config.APP_DB):
+        c = sqlite3.connect(config.APP_DB)
+        version = c.execute('PRAGMA user_version').fetchone()[0]
+        c.close()
+        if reset or version != SCHEMA_VERSION:  # app.sqlite của phiên bản cũ (có benchmark) → tạo lại
+            os.remove(config.APP_DB)
     conn = connect()
     try:
         conn.executescript(SCHEMA)
-        # nâng cấp app.sqlite tạo trước khi có cột answer
-        if 'answer' not in [c[1] for c in conn.execute('PRAGMA table_info(query_log)')]:
-            conn.execute('ALTER TABLE query_log ADD COLUMN answer TEXT')
+        conn.execute(f'PRAGMA user_version = {SCHEMA_VERSION}')
         if conn.execute('SELECT COUNT(*) FROM user_account').fetchone()[0] == 0:
             conn.executemany(
                 'INSERT INTO user_account (username, full_name, password_hash, role) VALUES (?,?,?,?)',
                 [(u, n, hash_password(p), r) for u, n, p, r in SEED_USERS])
             conn.executemany(
-                'INSERT INTO model_config (name, provider, model_tag, base_url, api_key_env) VALUES (?,?,?,?,?)',
-                SEED_MODELS)
+                'INSERT INTO model_config (name, provider, model_tag, base_url, api_key_env, is_default) '
+                'VALUES (?,?,?,?,?,?)', SEED_MODELS)
+            conn.executemany('INSERT INTO glossary_term (term, definition, updated_at) VALUES (?,?,?)',
+                             [(t, d, now()) for t, d in SEED_GLOSSARY])
+            load_sample_questions(conn)
             conn.commit()
-            if os.path.exists(config.BENCHMARK_JSON):
-                with open(config.BENCHMARK_JSON, encoding='utf-8') as f:
-                    import_benchmark(conn, json.load(f))
     finally:
         conn.close()
 
 
 if __name__ == '__main__':
     init_db(reset=True)
-    print(f'Đã khởi tạo {config.APP_DB}')
+    print(f'Đã khởi tạo {config.APP_DB} và {config.CLUB_DB}')

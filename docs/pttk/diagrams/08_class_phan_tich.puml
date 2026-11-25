@@ -3,16 +3,24 @@
 title Biểu đồ lớp phân tích (boundary – control – entity)
 hide empty members
 skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+set separator none
+left to right direction
 
 package "Boundary" {
   class ManDangNhap <<boundary>>
+  class ManTongQuan <<boundary>>
   class ManHoiDap <<boundary>>
   class ManLichSu <<boundary>>
-  class ManBenchmark <<boundary>>
+  class ManThanhVien <<boundary>>
+  class ManSuKien <<boundary>>
+  class ManTaiChinh <<boundary>>
+  class ManBaoCao <<boundary>>
   class ManTuDien <<boundary>>
   class ManQuanTri <<boundary>>
   class LLMGateway <<boundary>> {
     +generate_sql(model, prompt): str
+    +complete(model, prompt): str
   }
 }
 
@@ -20,99 +28,155 @@ package "Control" {
   class XacThucControl <<control>> {
     +login(username, password): token
     +current_user(token): NguoiDung
-    +require(roles)
+    +need(quyền)
+  }
+  class MaTranQuyen <<control>> {
+    +can(role, quyền): bool
+    +restrictions(role): bảng, cột bị cấm
   }
   class HoiDapControl <<control>> {
-    +ask(user, question, mode, ...): KetQua
+    +ask(user, question, model_id, evidence, sample_id): KetQua
     +match_glossary(question): ThuatNgu[]
+    +build_knowledge(evidence, terms): str
   }
   class PromptBuilder <<control>> {
     +schema_prompt(role): str
-    +build_prompt(question, knowledge, role): str
+    +build_prompt(question, knowledge, role, provider): str
   }
   class QueryGuard <<control>> {
     +check_select(sql): str
-    +execute(sql, role, timeout): rows
+    +execute(sql, role): columns, rows
   }
   class AnswerBuilder <<control>> {
-    +make_answer(question, columns, rows, model): str
-    +template_answer(columns, rows): str
+    +make_answer(question, columns, rows, model)
   }
-  class BenchmarkControl <<control>> {
-    +import_benchmark(file)
-    +summary(): EX theo model, cấu hình, độ khó
+  class ThanhVienControl <<control>> {
+    +them / sua / xoa(thanh_vien)
+  }
+  class SuKienControl <<control>> {
+    +them / sua / xoa(su_kien)
+    +doi_trang_thai()
+    +diem_danh(su_kien, ds_thanh_vien)
+  }
+  class TaiChinhControl <<control>> {
+    +lap_ngan_sach()
+    +de_xuat_chi()
+    +duyet(khoan_chi) / tu_choi(khoan_chi, ly_do)
+    +recompute_budget(ngan_sach)
+    +ghi_khoan_thu()
+  }
+  class BaoCaoControl <<control>> {
+    +dashboard(user)
+    +bao_cao_tham_du()
+    +bao_cao_tai_chinh()
+  }
+  class AuditLogger <<control>> {
+    +audit(user, action, entity, id, summary, before, after)
   }
 }
 
-package "Entity" {
+package "Entity — club.sqlite" {
+  class ThanhVien <<entity>> {
+    first_name, last_name
+    email, phone: pii (hạn chế)
+    position
+  }
+  class SuKien <<entity>> {
+    event_name, event_date, type
+    status: Planning | Open | Closed
+  }
+  class DiemDanh <<entity>>
+  class NganSach <<entity>> {
+    category, amount
+    spent, remaining
+  }
+  class KhoanChi <<entity>> {
+    expense_description, cost
+    approved: pending | true | false
+  }
+  class KhoanThu <<entity>> {
+    date_received, amount, source
+  }
+}
+
+package "Entity — app.sqlite" {
   class NguoiDung <<entity>> {
-    username
-    full_name
-    role: member | board | admin
+    username, full_name
+    role: president | treasurer | event | admin
     is_active
   }
   class CauHinhModel <<entity>> {
-    name
-    provider
-    model_tag
-    base_url
-    is_active
+    name, provider, model_tag
+    is_active, is_default
   }
   class ThuatNgu <<entity>> {
-    term
-    definition
-    is_active
+    term, definition, is_active
   }
-  class CauHoiDev <<entity>> {
-    question
-    evidence
-    gold_sql
+  class CauHoiMau <<entity>> {
+    id (question_id BIRD)
+    question, evidence
     difficulty
   }
-  class LuotBenchmark <<entity>> {
-    config
-    ex
-    full_dev_ex
-  }
-  class KetQuaBenchmark <<entity>> {
-    predicted_sql
-    is_correct
-  }
   class NhatKyTruyVan <<entity>> {
-    question
-    mode
-    generated_sql
-    answer
-    status
-    latency_ms
-    is_correct
+    question, evidence, glossary_used
+    generated_sql, answer
+    status, latency_ms
   }
   class DanhGia <<entity>> {
-    rating
-    comment
+    rating: -1 | 1
+  }
+  class DuyetChi <<entity>> {
+    proposed_by, proposed_at
+    reviewed_by, reviewed_at, note
+  }
+  class NhatKyThayDoi <<entity>> {
+    action, entity, entity_id
+    summary, detail
   }
 }
 
 ManDangNhap --> XacThucControl
 ManHoiDap --> HoiDapControl
 ManLichSu --> NhatKyTruyVan
-ManBenchmark --> BenchmarkControl
+ManHoiDap --> CauHoiMau : chọn câu mẫu
+ManThanhVien --> ThanhVienControl
+ManSuKien --> SuKienControl
+ManTaiChinh --> TaiChinhControl
+ManTongQuan --> BaoCaoControl
+ManBaoCao --> BaoCaoControl
 ManTuDien --> ThuatNgu
-ManQuanTri --> BenchmarkControl
+ManQuanTri --> NguoiDung
+ManQuanTri --> CauHinhModel
+ManQuanTri --> NhatKyThayDoi
+
+XacThucControl --> MaTranQuyen
 HoiDapControl --> PromptBuilder
 HoiDapControl --> QueryGuard
 HoiDapControl --> LLMGateway
 HoiDapControl --> AnswerBuilder
-AnswerBuilder --> LLMGateway
 HoiDapControl --> NhatKyTruyVan : tạo
+PromptBuilder --> MaTranQuyen
+QueryGuard --> MaTranQuyen
+AnswerBuilder --> LLMGateway
+ThanhVienControl --> AuditLogger
+SuKienControl --> AuditLogger
+TaiChinhControl --> AuditLogger
+TaiChinhControl --> DuyetChi
+AuditLogger --> NhatKyThayDoi : tạo
+
+ThanhVien "1" -- "0..*" DiemDanh
+SuKien "1" -- "0..*" DiemDanh
+SuKien "1" -- "0..*" NganSach
+NganSach "1" -- "0..*" KhoanChi
+ThanhVien "0..1" -- "0..*" KhoanChi
+ThanhVien "0..1" -- "0..*" KhoanThu
+KhoanChi "1" -- "0..1" DuyetChi
 
 NguoiDung "1" -- "0..*" NhatKyTruyVan : đặt
 CauHinhModel "1" -- "0..*" NhatKyTruyVan
-CauHinhModel "1" -- "0..*" LuotBenchmark
-LuotBenchmark "1" *-- "158" KetQuaBenchmark
-CauHoiDev "1" -- "0..*" KetQuaBenchmark
-CauHoiDev "0..1" -- "0..*" NhatKyTruyVan
 NhatKyTruyVan "1" -- "0..*" DanhGia
-NguoiDung "1" -- "0..*" DanhGia
-NguoiDung "1" -- "0..*" ThuatNgu : cập nhật
+CauHoiMau "0..1" -- "0..*" NhatKyTruyVan
+NguoiDung "1" -- "0..*" DuyetChi : đề xuất / duyệt
+NguoiDung "1" -- "0..*" NhatKyThayDoi : thực hiện
+NguoiDung "0..1" -- "0..*" ThuatNgu : cập nhật
 @enduml

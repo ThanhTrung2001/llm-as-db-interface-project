@@ -1,53 +1,69 @@
 @startuml activity_hoi_dap
 !include _style.iuml
-title Biểu đồ hoạt động — UC02 Đặt câu hỏi
+title Biểu đồ hoạt động — UC02 Hỏi đáp bằng ngôn ngữ tự nhiên
 
 |Người dùng|
 start
-:Chọn chế độ (trực tiếp / phát lại);
-:Nhập câu hỏi hoặc chọn câu hỏi mẫu;
-:Bấm "Hỏi";
-|Hệ thống|
-if (Chế độ?) then (phát lại)
-  :Lấy SQL đã sinh trong lượt benchmark;
-else (trực tiếp)
-  :Ghép evidence của câu mẫu (nếu có);
-  if (Câu hỏi chứa thuật ngữ đang bật?) then (có)
-    :Ghép định nghĩa thuật ngữ vào evidence;
-  endif
-  :Chuẩn hoá hàm giả trong evidence\n(normalize_pseudo_sql);
-  :Dựng prompt với schema theo vai trò;
-  |Dịch vụ LLM|
-  :Sinh câu trả lời;
+:Chọn model (mặc định: model đánh dấu mặc định);
+if (Dùng câu hỏi mẫu BIRD?) then (có)
+  :Mở "BIRD sample questions",
+tìm / lọc theo độ khó, chọn một câu;
   |Hệ thống|
-  :Tách SQL khỏi câu trả lời (extract_sql);
+  :Điền câu hỏi và evidence của câu mẫu
+vào ô "External knowledge";
+  |Người dùng|
 endif
-:Kiểm tra SQL (BR01);
+:Nhập / sửa câu hỏi (3–500 ký tự)
+và tri thức ngoài (tuỳ chọn, ≤ 2000 ký tự);
+:Bấm "Ask";
+|Hệ thống|
+if (Model tồn tại và đang bật?) then (không)
+  :Báo lỗi 422 (không tạo log);
+  stop
+endif
+if (Có tri thức ngoài?) then (có)
+  :Đưa tri thức ngoài vào tri thức (giữ nguyên văn);
+endif
+if (Câu hỏi chứa thuật ngữ đang bật?) then (có)
+  :Nối "<term> refers to <definition>"\nđã chuẩn hoá hàm giả (normalize_pseudo_sql);
+endif
+if (Tri thức rỗng?) then (có)
+  :Prompt không có dòng External Knowledge\n(như prompt "không evidence" của BIRD);
+else (không)
+  :Thêm dòng "-- External Knowledge: …";
+endif
+:Dựng prompt theo khuôn BIRD\nschema chỉ gồm bảng/cột vai trò được xem (BR03);
+|Dịch vụ LLM|
+:Sinh văn bản chứa SQL;
+|Hệ thống|
+:Tách SQL (extract_sql);
 if (Gọi model lỗi / không phải SQL?) then (có)
-  :Trạng thái = FAILED_GENERATION;
+  :status = FAILED_GENERATION;
 elseif (Nhiều câu lệnh / lệnh ghi?) then (có)
-  :Trạng thái = REJECTED_UNSAFE;
-else (đúng một câu SELECT)
-  |CSDL student_club|
-  :Thực thi chỉ đọc, authorizer theo vai trò,\ntimeout 10 giây (BR02, BR03);
+  :status = REJECTED_UNSAFE;
+else (đúng một câu SELECT, BR01)
+  |CSDL club.sqlite|
+  :Thực thi mode=ro + authorizer theo vai trò\n+ timeout 10 giây (BR02, BR03);
   |Hệ thống|
-  if (Kết quả?) then (bị chặn quyền)
-    :Trạng thái = REJECTED_PERMISSION;
-  elseif () then (quá giờ / lỗi)
-    :Trạng thái = TIMEOUT / EXEC_ERROR;
+  if (Kết quả?) then (đọc bảng/cột bị cấm)
+    :status = REJECTED_PERMISSION;
+  elseif () then (quá giờ / lỗi SQLite)
+    :status = TIMEOUT / EXEC_ERROR;
   else (thành công)
-    :Trạng thái = EXECUTED;
-    :Diễn giải kết quả thành câu trả lời\n(trực tiếp: model; phát lại: câu mẫu);
-    if (Câu hỏi thuộc bộ dev?) then (có)
-      :Chạy SQL gold, so tập kết quả\n→ đúng / sai;
+    :status = EXECUTED;\nCắt còn 1000 dòng (BR02);
+    |Dịch vụ LLM|
+    :Diễn giải câu hỏi + tối đa 30 dòng\nthành 1–3 câu trả lời tiếng Anh;
+    |Hệ thống|
+    if (Model lỗi khi diễn giải?) then (có)
+      :Dựng câu trả lời theo mẫu;
     endif
   endif
 endif
-:Ghi query_log với trạng thái cuối (BR04);
+:Ghi query_log (sample_id, evidence,\nthuật ngữ, trạng thái cuối) (BR04);
 |Người dùng|
-:Xem câu trả lời, bảng dữ liệu,\nSQL (thu gọn), đúng/sai;
-if (Muốn đánh giá?) then (có)
-  :Bấm Đúng / Sai (UC04);
+:Xem câu trả lời, tri thức đã thêm, bảng dữ liệu,\n"External knowledge sent to the model", SQL;
+if (Đánh giá / xuất CSV / hỏi lại?) then (có)
+  :Bấm Correct / Wrong (UC04),\nCSV (UC05) hoặc Ask again;
 endif
 stop
 @enduml

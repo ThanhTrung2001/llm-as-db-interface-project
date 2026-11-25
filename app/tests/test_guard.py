@@ -56,27 +56,40 @@ def test_write_hidden_in_cte_blocked_by_engine():
     'SELECT m.first_name FROM member m JOIN expense e ON e.link_to_member = m.member_id',
     "SELECT first_name FROM member WHERE phone LIKE '%1%'",
 ])
-def test_member_cannot_read_restricted(sql):
-    assert status_of(guard.execute, sql, 'member') == 'REJECTED_PERMISSION'
+def test_event_team_cannot_read_restricted(sql):
+    assert status_of(guard.execute, sql, 'event') == 'REJECTED_PERMISSION'
 
 
-def test_member_can_read_allowed_data():
-    cols, rows = guard.execute("SELECT COUNT(*) FROM event WHERE type = 'Meeting'", 'member')
+@pytest.mark.parametrize('role', ['treasurer', 'admin'])
+@pytest.mark.parametrize('sql', ['SELECT email FROM member', 'SELECT * FROM member'])
+def test_only_president_reads_contact_info(role, sql):
+    assert status_of(guard.execute, sql, role) == 'REJECTED_PERMISSION'
+    guard.execute(sql, 'president')
+
+
+def test_event_team_can_read_allowed_data():
+    cols, rows = guard.execute("SELECT COUNT(*) FROM event WHERE type = 'Meeting'", 'event')
     assert rows[0][0] > 0
 
 
-@pytest.mark.parametrize('role', ['board', 'admin'])
-def test_board_and_admin_can_read_finance(role):
+@pytest.mark.parametrize('role', ['president', 'treasurer', 'admin'])
+def test_finance_roles_can_read_finance(role):
     _, rows = guard.execute('SELECT SUM(cost) FROM expense', role)
     assert rows[0][0] > 0
 
 
-def test_member_schema_hides_restricted():
-    s = prompt.schema_prompt('member')
+def test_unknown_role_gets_most_restricted():
+    assert status_of(guard.execute, 'SELECT SUM(amount) FROM income', 'nobody') == 'REJECTED_PERMISSION'
+
+
+def test_schema_prompt_follows_permission_matrix():
+    s = prompt.schema_prompt('event')
     assert 'expense' not in s and 'income' not in s and '"budget"' not in s
     assert 'email' not in s and 'phone' not in s
     assert 'first_name' in s and 'attendance' in s
-    full = prompt.schema_prompt('board')
+    t = prompt.schema_prompt('treasurer')
+    assert 'expense' in t and 'email' not in t
+    full = prompt.schema_prompt('president')
     assert 'expense' in full and 'email' in full
 
 
@@ -88,7 +101,7 @@ def test_timeout():
     assert status_of(guard.execute, slow, 'admin', timeout_s=0.5) == 'TIMEOUT'
 
 
-def test_source_db_opened_read_only():
+def test_club_db_opened_read_only_for_questions():
     conn = guard.connect_readonly()
     try:
         with pytest.raises(Exception, match='readonly'):

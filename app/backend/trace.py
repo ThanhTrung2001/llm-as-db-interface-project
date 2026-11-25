@@ -122,5 +122,5 @@ def step(label: str, func: str, purpose: str, params=None, output=None, note: st
 def end(out: dict):
     if ENABLED:
         log.info(f'\n[ASK #{_current["id"]}] KẾT THÚC — status={out.get("status")}, '
-                 f'is_correct={out.get("is_correct")}, latency_ms={out.get("latency_ms")}, '
+                 f'latency_ms={out.get("latency_ms")}, '
                  f'log_id={out.get("log_id")}\n' + '=' * 100)

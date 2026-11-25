@@ -37,15 +37,12 @@ def comment_prompt(question: str, knowledge: Optional[str] = None) -> str:
             f'for the tables provided above.\n-- {question}')
 
 
-# Câu kết thúc prompt, đúng như lúc benchmark từng provider:
-#  - openai  : openai_request.generate_combined_prompts_one()  (giữ câu nhắc của gpt_request.py gốc)
-#  - còn lại : ollama_request / groq_request.generate_combined_prompts_one()
-OPENAI_TAIL = '\nGenerate the SQL after thinking step by step: ' + '\nSELECT '
+# Câu kết thúc prompt: yêu cầu model chat trả SQL trong khối ```sql (cùng câu với ollama_request.py lúc benchmark)
 CHAT_TAIL = '\nRespond with the final SQLite query only, inside a ```sql code block. Do not add any explanation.'
 
 
 def prompt_tail(provider: str) -> str:
-    return OPENAI_TAIL if provider == 'openai' else CHAT_TAIL
+    return CHAT_TAIL
 
 
 def build_prompt(question: str, knowledge: Optional[str], role: str, provider: str = 'ollama') -> str:
@@ -53,10 +50,10 @@ def build_prompt(question: str, knowledge: Optional[str], role: str, provider: s
     schema = schema_prompt(role)
     trace.step(
         '2b.4a', 'prompt.schema_prompt',
-        'Đọc các câu CREATE TABLE trong sqlite_master của student_club.sqlite, bỏ bảng/cột mà vai trò '
+        'Đọc các câu CREATE TABLE trong sqlite_master của club.sqlite, bỏ bảng/cột mà vai trò '
         'không được xem (BR03). Kết quả được cache theo vai trò.',
-        [('role', role, 'Vai trò người hỏi: member | board | admin'),
-         ('bảng bị ẩn', r['tables'], 'Theo config.RESTRICTED; rỗng = thấy hết'),
+        [('role', role, 'Vai trò người hỏi: president | treasurer | event | admin'),
+         ('bảng bị ẩn', r['tables'], 'Suy ra từ ma trận quyền config.PERMISSIONS; rỗng = thấy hết'),
          ('cột bị ẩn', r['columns'], '(bảng, cột) bị xoá khỏi CREATE TABLE')],
         schema, output_desc='Phần schema đặt ở đầu prompt (giống BIRD: các câu CREATE TABLE)')
 
@@ -73,11 +70,9 @@ def build_prompt(question: str, knowledge: Optional[str], role: str, provider: s
     full = schema + '\n\n' + comment + tail
     trace.step(
         '2b.4', 'prompt.build_prompt',
-        'Ghép schema + "\\n\\n" + comment + câu kết thúc theo provider, đúng như script benchmark '
-        '(openai → openai_request.py; ollama/groq → ollama_request.py).',
+        'Ghép schema + "\\n\\n" + comment + câu kết thúc, đúng như script benchmark '
+        '(ollama_request.py).',
         [('question', question, None), ('knowledge', knowledge, None), ('role', role, None),
-         ('provider', provider, 'Chọn câu kết thúc prompt'),
-         ('tail', tail, 'openai: "Generate the SQL after thinking step by step: \\nSELECT " (model viết tiếp sau '
-                        'SELECT); còn lại: yêu cầu trả SQL trong khối ```sql')],
+         ('tail', tail, 'Yêu cầu model trả SQL trong khối ```sql')],
         full, output_desc='Prompt hoàn chỉnh gửi cho LLM')
     return full

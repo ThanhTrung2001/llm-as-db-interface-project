@@ -1,0 +1,23 @@
+@startuml state_expense
+!include _style.iuml
+title Biểu đồ trạng thái — Khoản chi (expense.approved)
+
+[*] --> PENDING : Thủ quỹ đề xuất\n[ngân sách tồn tại, sự kiện chưa Closed]\n/ approved = 'pending', ghi expense_review
+
+PENDING --> PENDING : người đề xuất sửa (BR13)
+PENDING --> [*] : người đề xuất huỷ (BR13)\n/ xoá expense, expense_review
+PENDING --> APPROVED : Chủ nhiệm duyệt\n[người duyệt ≠ người đề xuất (BR08)\n và cost ≤ remaining (BR07)]\n/ approved = 'true', tính lại budget (BR06)
+PENDING --> REJECTED : Chủ nhiệm từ chối\n[người duyệt ≠ người đề xuất, có lý do]\n/ approved = 'false', lưu lý do
+
+APPROVED --> [*]
+REJECTED --> [*]
+
+state PENDING : chờ duyệt — chỉ người đề xuất sửa, huỷ
+state APPROVED : đã duyệt — tính vào budget.spent;\nkhông sửa, không huỷ
+state REJECTED : bị từ chối — không tính vào ngân sách;\nkhông sửa, không huỷ
+
+note bottom of APPROVED
+  Dữ liệu gốc: approved = 'true' (31 khoản)
+  hoặc NULL (1 khoản) đều coi là APPROVED.
+end note
+@enduml

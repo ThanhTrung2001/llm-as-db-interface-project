@@ -1,19 +1,19 @@
 @startuml erd
 !include _style.iuml
-title ERD — CSDL nguồn student_club (đảo ngược, chỉ đọc) và CSDL ứng dụng app.sqlite
+title ERD — CSDL nghiệp vụ club.sqlite và CSDL ứng dụng app.sqlite
 hide circle
 set separator none
 skinparam linetype ortho
 
-package "student_club.sqlite (nguồn, chỉ đọc)" #f3f7fd {
+package "club.sqlite — dữ liệu nghiệp vụ CLB (chép từ student_club.sqlite của BIRD)" #f3f7fd {
   entity member {
     * member_id : TEXT <<PK>>
     --
     first_name, last_name : TEXT
-    email : TEXT <<hạn chế>>
+    email : TEXT <<pii>>
     position : TEXT
     t_shirt_size : TEXT
-    phone : TEXT <<hạn chế>>
+    phone : TEXT <<pii>>
     zip : INTEGER <<FK>>
     link_to_major : TEXT <<FK>>
   }
@@ -31,30 +31,32 @@ package "student_club.sqlite (nguồn, chỉ đọc)" #f3f7fd {
     * event_id : TEXT <<PK>>
     --
     event_name, event_date, type : TEXT
-    notes, location, status : TEXT
+    notes, location : TEXT
+    status : Planning | Open | Closed
   }
   entity attendance {
     * link_to_event : TEXT <<PK, FK>>
     * link_to_member : TEXT <<PK, FK>>
   }
-  entity budget <<hạn chế>> {
+  entity budget <<finance>> {
     * budget_id : TEXT <<PK>>
     --
     category : TEXT
-    spent, remaining, amount : REAL
-    event_status : TEXT
+    amount : INTEGER
+    spent, remaining : REAL (suy ra, BR06)
+    event_status : TEXT (bản sao event.status)
     link_to_event : TEXT <<FK>>
   }
-  entity expense <<hạn chế>> {
+  entity expense <<finance>> {
     * expense_id : TEXT <<PK>>
     --
     expense_description, expense_date : TEXT
     cost : REAL
-    approved : TEXT
+    approved : pending | true | false
     link_to_member : TEXT <<FK>>
     link_to_budget : TEXT <<FK>>
   }
-  entity income <<hạn chế>> {
+  entity income <<finance>> {
     * income_id : TEXT <<PK>>
     --
     date_received : TEXT
@@ -65,30 +67,30 @@ package "student_club.sqlite (nguồn, chỉ đọc)" #f3f7fd {
 }
 
 major ||--o{ member
-zip_code ||--o{ member
+zip_code |o--o{ member
 member ||--o{ attendance
 event ||--o{ attendance
 event ||--o{ budget
 budget ||--o{ expense
-member ||--o{ expense
-member ||--o{ income
+member |o--o{ expense
+member |o--o{ income
 
-package "app.sqlite (ứng dụng)" #fdf8ee {
+package "app.sqlite — dữ liệu ứng dụng" #fdf8ee {
   entity user_account {
     * id : INTEGER <<PK>>
     --
     username : TEXT <<UNIQUE>>
     full_name, password_hash : TEXT
-    role : member | board | admin
+    role : president | treasurer | event | admin
     is_active : INTEGER
   }
   entity model_config {
     * id : INTEGER <<PK>>
     --
     name : TEXT <<UNIQUE>>
-    provider : openai | groq | openrouter | ollama
+    provider : groq | openrouter | ollama
     model_tag, base_url, api_key_env : TEXT
-    is_active : INTEGER
+    is_active, is_default : INTEGER
   }
   entity glossary_term {
     * id : INTEGER <<PK>>
@@ -99,37 +101,22 @@ package "app.sqlite (ứng dụng)" #fdf8ee {
     updated_by : INTEGER <<FK>>
     updated_at : TEXT
   }
-  entity dev_question {
-    * id : INTEGER <<PK>> (chỉ số trong dev.json)
-    --
-    question, evidence, gold_sql : TEXT
-    difficulty : simple | moderate | challenging
-  }
-  entity benchmark_run {
-    * id : INTEGER <<PK>>
-    --
-    model_id : INTEGER <<FK>>
-    config : no_evidence | evidence | evidence_norm
-    source, note : TEXT
-    ex, full_dev_ex : REAL
-    imported_at : TEXT
-  }
-  entity benchmark_item {
-    * run_id : INTEGER <<PK, FK>>
-    * question_id : INTEGER <<PK, FK>>
-    --
-    predicted_sql : TEXT
-    is_correct : INTEGER
-  }
   entity query_log {
     * id : INTEGER <<PK>>
     --
     user_id : INTEGER <<FK>>
-    model_id, run_id, dev_question_id : INTEGER <<FK>>
-    question, mode, evidence_used, glossary_used : TEXT
+    model_id : INTEGER <<FK>>
+    sample_id : INTEGER <<FK>>
+    question, evidence, glossary_used : TEXT
     generated_sql, answer, status, error : TEXT
-    latency_ms, row_count, is_correct : INTEGER
+    latency_ms, row_count : INTEGER
     created_at : TEXT
+  }
+  entity sample_question {
+    * id : INTEGER <<PK>> (= question_id BIRD)
+    --
+    question, evidence : TEXT
+    difficulty : simple | moderate | challenging
   }
   entity feedback {
     * id : INTEGER <<PK>>
@@ -138,16 +125,32 @@ package "app.sqlite (ứng dụng)" #fdf8ee {
     rating : -1 | 1
     comment, created_at : TEXT
   }
+  entity expense_review {
+    * expense_id : TEXT <<PK>> (= club.expense)
+    --
+    proposed_by : INTEGER <<FK>>
+    proposed_at : TEXT
+    reviewed_by : INTEGER <<FK>>
+    reviewed_at, note : TEXT
+  }
+  entity audit_log {
+    * id : INTEGER <<PK>>
+    --
+    user_id : INTEGER <<FK>>
+    action : CREATE | UPDATE | DELETE | APPROVE | REJECT
+    entity, entity_id, summary : TEXT
+    detail : TEXT (JSON trước/sau)
+    created_at : TEXT
+  }
 }
 
 user_account ||--o{ query_log
 user_account ||--o{ feedback
 user_account |o--o{ glossary_term
-model_config ||--o{ benchmark_run
 model_config |o--o{ query_log
-benchmark_run ||--|{ benchmark_item
-dev_question ||--o{ benchmark_item
-dev_question |o--o{ query_log
-benchmark_run |o--o{ query_log
 query_log ||--o{ feedback
+sample_question |o--o{ query_log
+user_account ||--o{ expense_review
+user_account ||--o{ audit_log
+expense ||..o| expense_review : liên kết logic\n(khác CSDL)
 @enduml

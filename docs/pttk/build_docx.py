@@ -38,7 +38,7 @@ CLUBQUERY
 :::
 
 ::: {custom-style="Cover Subtitle"}
-Hệ thống hỏi đáp dữ liệu câu lạc bộ sinh viên bằng ngôn ngữ tự nhiên: nghiên cứu bài báo BIRD và ứng dụng
+Hệ thống quản lý câu lạc bộ sinh viên có hỏi đáp dữ liệu bằng ngôn ngữ tự nhiên: nghiên cứu bài báo BIRD và ứng dụng
 :::
 
 ::: {custom-style="Cover Info"}
@@ -72,7 +72,7 @@ def prepare_markdown() -> str:
     # bỏ bìa và mục lục dạng Markdown (từ đầu tới hết mục lục), thay bằng bìa + mục lục của Word
     body = md[md.index('## 1. Giới thiệu'):]
     body = re.sub(r'\n---\n', '\n', body)  # đường kẻ ngang giữa chương; Heading 1 đã tự sang trang
-    body = body.replace('(screens/06_mobile.png)', '(screens/06_mobile.png){width=6cm}')
+    body = body.replace('(screens/09_mobile.png)', '(screens/09_mobile.png){width=6cm}')
     return COVER + '\n' + separate_lists(body)
 
 

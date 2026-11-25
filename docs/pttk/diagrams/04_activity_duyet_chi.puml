@@ -1,0 +1,53 @@
+@startuml activity_duyet_chi
+!include _style.iuml
+title Biểu đồ hoạt động — UC11 Đề xuất khoản chi và UC12 Duyệt khoản chi
+
+|Thủ quỹ|
+start
+:Chọn ngân sách (sự kiện + hạng mục),\nnhập mô tả, ngày, số tiền, người chi;
+:Bấm "Propose expense";
+|Hệ thống|
+if (Ngân sách tồn tại, sự kiện chưa Closed,\nthành viên hợp lệ?) then (không)
+  :Báo lỗi 422 / 409;
+  stop
+endif
+:Một giao dịch: INSERT expense (approved = 'pending')\n+ expense_review (người đề xuất)\n+ audit_log CREATE (BR10);
+if (Số tiền > ngân sách còn lại?) then (có)
+  :Trả kèm cảnh báo vượt ngân sách (BR07);
+endif
+|Thủ quỹ|
+:Thấy khoản chi ở trạng thái PENDING;
+note right
+  Khi còn chờ duyệt, chỉ người đề xuất được
+  sửa hoặc huỷ đề xuất
+end note
+|Chủ nhiệm|
+:Mở danh sách khoản chi chờ duyệt;
+if (Quyết định?) then (duyệt)
+  |Hệ thống|
+  if (Người duyệt là người đề xuất?) then (có)
+    :Từ chối thao tác 409 (BR08);
+    stop
+  elseif (Số tiền > ngân sách còn lại?) then (có)
+    :Từ chối thao tác 409 (BR07);
+    stop
+  else (hợp lệ)
+    :Một giao dịch: approved = 'true';\ncập nhật expense_review;\ntính lại budget.spent, remaining (BR06);\naudit_log APPROVE;
+  endif
+else (từ chối)
+  |Chủ nhiệm|
+  :Nhập lý do;
+  |Hệ thống|
+  if (Người từ chối là người đề xuất?) then (có)
+    :Từ chối thao tác 409 (BR08);
+    stop
+  elseif (Thiếu lý do?) then (có)
+    :Báo lỗi 422;
+    stop
+  endif
+  :Một giao dịch: approved = 'false';\ncập nhật expense_review (lý do);\naudit_log REJECT;
+endif
+|Thủ quỹ|
+:Thấy kết quả duyệt và ghi chú;
+stop
+@enduml

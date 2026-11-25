@@ -1,4 +1,5 @@
 // Sự kiện và điểm danh (BR11 vòng đời một chiều, BR12 chỉ điểm danh khi sự kiện đang mở)
+import { budgetForm } from './finance.js';
 import { $, $$, api, avatar, badge, can, CATEGORY_VI, confirmDialog, dataTable, esc, EVENT_TYPE_VI, fmt, formModal, h, icon, modal, POSITION_VI, progress, state, tabs, toast, toastError, vi } from '../core.js';
 
 const NEXT = { Planning: ['Open', 'Open event', 'Attendance can be recorded from now on'], Open: ['Closed', 'Close event', 'Attendance and spending will be locked'] };
@@ -33,9 +34,11 @@ async function detail(id, reload) {
   const body = h(`<div>
     <div class="ev-head">${badge(e.status)}<span>${icon('calendar')}${fmt.datetime(e.event_date)}</span><span>${icon('pin')}${esc(e.location || 'No location yet')}</span><span>${esc(vi(EVENT_TYPE_VI, e.type))}</span></div>
     ${e.notes ? `<p class="muted">${esc(e.notes)}</p>` : ''}
-    ${e.budgets ? `<h4>Budget</h4>${e.budgets.length ? `<table class="compact"><thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Spent</th><th></th></tr></thead><tbody>${e.budgets.map((b) => `<tr><td>${esc(vi(CATEGORY_VI, b.category))}</td><td class="num">${fmt.money(b.amount)}</td><td class="num">${fmt.money(b.spent)}</td><td>${progress(b.spent, b.amount)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted small">No budget set yet.</p>'}` : ''}
+    ${e.budgets ? `<h4>Budget</h4>${e.budgets.length ? `<table class="compact"><thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Spent</th><th></th></tr></thead><tbody>${e.budgets.map((b) => `<tr><td>${esc(vi(CATEGORY_VI, b.category))}</td><td class="num">${fmt.money(b.amount)}</td><td class="num">${fmt.money(b.spent)}</td><td>${progress(b.spent, b.amount)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted small">No budget set yet.</p>'}
+      ${e.status === 'Closed' ? '' : can('finance.write') ? `<button type="button" class="btn sm ghost" id="add-budget">${icon('plus')}Add budget</button>`
+        : `<p class="small muted">${icon('info')} Budgets are created by the Treasurer (Finance → Budgets); the President approves expenses against them.</p>`}` : ''}
     <h4>Attendance <span class="muted" id="att-count">${chosen.size} ${chosen.size === 1 ? 'person' : 'people'}</span></h4>
-    ${!editable ? `<p class="small muted">${icon('info')} ${e.status === 'Planning' ? 'The event is not open yet, so attendance cannot be recorded.' : e.status === 'Closed' ? 'The event is closed; the attendance list is locked.' : 'You do not have permission to record attendance.'}</p>` : ''}
+    ${!editable ? `<p class="small muted">${icon('info')} ${e.status === 'Planning' ? (can('event.write') ? 'Attendance opens when the event starts: click <b>Open event</b> below, tick the members who came, then <b>Save attendance</b>.' : 'The event is not open yet, so attendance cannot be recorded.') : e.status === 'Closed' ? 'The event is closed; the attendance list is locked.' : 'You do not have permission to record attendance.'}</p>` : ''}
     ${editable ? `<div class="att-tools"><label class="search">${icon('search')}<input type="search" placeholder="Search members…" id="att-q"></label>
       <button class="btn sm ghost" id="att-all">Select all</button><button class="btn sm ghost" id="att-none">Clear</button></div>` : ''}
     <div class="att-list">${members.filter((m) => editable ? m.position !== 'Inactive' || chosen.has(m.id) : chosen.has(m.id)).map((m) => `
@@ -52,6 +55,7 @@ async function detail(id, reload) {
     $('#att-all', body).addEventListener('click', () => { boxes().forEach((b) => { if (!b.closest('.att-item').hidden) b.checked = true; }); count(); });
     $('#att-none', body).addEventListener('click', () => { boxes().forEach((b) => { b.checked = false; }); count(); });
   }
+  $('#add-budget', body)?.addEventListener('click', () => { body.closest('.modal-backdrop')?._close?.(null); budgetForm(null, reload, e.event_id); });
   const actions = [];
   if (can('event.write')) {
     if (e.status === 'Planning') actions.push({ label: 'Delete', kind: 'danger ghost', icon: 'trash', onClick: async () => {

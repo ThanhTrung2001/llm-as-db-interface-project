@@ -140,7 +140,7 @@ export default async function ask({ view, setHeader }) {
   const setSample = (s) => {
     sample = s;
     chip.hidden = !s;
-    chip.innerHTML = s ? `<span class="badge info">BIRD sample #${s.id} · ${esc(s.difficulty)}</span><button type="button" class="link small" id="clear-sample">Clear</button>` : '';
+    chip.innerHTML = s ? `<span class="badge info">BIRD sample #${s.id} · ${esc(s.difficulty)}</span>${s.evidence ? '<span class="badge accent">evidence attached</span>' : '<span class="badge muted" title="This BIRD question ships with an empty evidence field">no evidence in BIRD</span>'}<button type="button" class="link small" id="clear-sample">Clear</button>` : '';
     $('#clear-sample', chip)?.addEventListener('click', () => { setSample(null); ta.value = ''; ev.value = ''; ta.focus(); });
   };
   const fill = (question, evidence = '', s = null) => { ta.value = question; ev.value = evidence || ''; setSample(s); ta.focus(); };

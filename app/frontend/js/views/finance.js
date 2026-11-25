@@ -93,10 +93,11 @@ async function expensesTab(box, reload) {
   });
 }
 
-function budgetForm(b, reload) {
+export async function budgetForm(b, reload, eventId = null) {
+  if (!b) state.lookups = await api('/api/lookups');  // include events created since login
   const L = state.lookups;
   return formModal({
-    title: b ? `Edit budget — ${vi(CATEGORY_VI, b.category)}` : 'Create budget', values: b || {},
+    title: b ? `Edit budget — ${vi(CATEGORY_VI, b.category)}` : 'Create budget', values: b || (eventId ? { link_to_event: eventId } : {}),
     fields: [
       { name: 'link_to_event', label: 'Event', type: 'select', required: true, span: 2, disabled: !!b,
         options: L.events.filter((e) => e.status !== 'Closed' || b).map((e) => [e.id, `${e.name} (${fmt.date(e.date)})`]) },

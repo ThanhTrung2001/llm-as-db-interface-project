@@ -318,7 +318,7 @@ Tri thức ngoài chính là *evidence* của BIRD: trong bài báo, mỗi câu 
 
 **Luồng thay thế:**
 - **A1 — Không có tri thức** (bước 2–3): ô tri thức ngoài trống và không thuật ngữ nào khớp → prompt **không có** dòng External Knowledge, đúng như prompt "không evidence" của BIRD.
-- **A5 — Chọn câu hỏi mẫu BIRD** (UC02h, thay bước 1): người dùng bấm **BIRD sample questions (158)**, tìm theo nội dung câu hỏi/evidence, lọc theo độ khó (*All / Simple / Moderate / Challenging*), chọn một câu. Hệ thống điền câu hỏi và evidence của câu đó vào ô tri thức ngoài, hiện nhãn *BIRD sample #id · difficulty* (bấm *Clear* để bỏ). Người dùng có thể sửa tự do trước khi hỏi; mã câu mẫu được ghi vào `query_log.sample_id`. 146/158 câu có evidence.
+- **A5 — Chọn câu hỏi mẫu BIRD** (UC02h, thay bước 1): người dùng bấm **BIRD sample questions (158)**, tìm theo nội dung câu hỏi/evidence, lọc theo độ khó (*All / Simple / Moderate / Challenging*), chọn một câu. Hệ thống điền câu hỏi và evidence của câu đó vào ô tri thức ngoài, hiện nhãn *BIRD sample #id · difficulty* (bấm *Clear* để bỏ); kèm nhãn *evidence attached*, hoặc *no evidence in BIRD* với 12 câu mà BIRD để trống evidence — khi đó ô tri thức ngoài để trống và prompt không có dòng `-- External Knowledge:`. Người dùng có thể sửa tự do trước khi hỏi; mã câu mẫu được ghi vào `query_log.sample_id`. 146/158 câu có evidence.
 - **A6 — Hỏi lại**: nút **Ask again** trên thẻ kết quả, hoặc hỏi lại từ **Question history**, gửi lại cả tri thức ngoài đã dùng.
 - **A2 — Kết quả quá 1000 dòng** (bước 10): chỉ trả 1000 dòng đầu, có cờ `truncated`.
 - **A3 — Diễn giải không dùng được model** (bước 8): model lỗi hoặc trả rỗng → câu trả lời dựng theo mẫu từ kết quả, ví dụ "Result: 9.", "2 results: Law, Business.", "No matching data was found.".
@@ -593,7 +593,7 @@ Menu chia ba nhóm: **General** (Dashboard, Ask AI, Question history), **Managem
 
 ![Thành viên](screens/03_thanh_vien.png)
 
-**Events & attendance:** hộp chi tiết của một sự kiện đang mở (*Open*, "07 Apr 2020 12:00"), gồm *Budget* theo hạng mục (Budget / Spent) và *Attendance* với ô chọn từng thành viên, *Search members…*, *Select all*, *Clear*; các nút **Edit**, **Close event**, **Save attendance**.
+**Events & attendance:** hộp chi tiết của một sự kiện đang mở (*Open*, "07 Apr 2020 12:00"), gồm *Budget* theo hạng mục (Budget / Spent) và *Attendance* với ô chọn từng thành viên, *Search members…*, *Select all*, *Clear*; các nút **Edit**, **Close event**, **Save attendance**. Khi sự kiện còn `Planning`, hộp này nhắc "click **Open event** below, tick the members who came, then **Save attendance**". Trong khung *Budget*, Thủ quỹ có nút **Add budget** (mở form *Create budget* chọn sẵn sự kiện); Chủ nhiệm thấy dòng "Budgets are created by the Treasurer (Finance → Budgets)".
 
 ![Sự kiện](screens/04_su_kien.png)
 

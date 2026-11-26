@@ -48,7 +48,7 @@ Tri thức ngoài chính là *evidence* của BIRD: trong bài báo, mỗi câu 
 
 **Luồng thay thế:**
 - **A1 — Không có tri thức** (bước 2–3): ô tri thức ngoài trống và không thuật ngữ nào khớp → prompt **không có** dòng External Knowledge, đúng như prompt "không evidence" của BIRD.
-- **A5 — Chọn câu hỏi mẫu BIRD** (UC02h, thay bước 1): người dùng bấm **BIRD sample questions (158)**, tìm theo nội dung câu hỏi/evidence, lọc theo độ khó (*All / Simple / Moderate / Challenging*), chọn một câu. Hệ thống điền câu hỏi và evidence của câu đó vào ô tri thức ngoài, hiện nhãn *BIRD sample #id · difficulty* (bấm *Clear* để bỏ). Người dùng có thể sửa tự do trước khi hỏi; mã câu mẫu được ghi vào `query_log.sample_id`. 146/158 câu có evidence.
+- **A5 — Chọn câu hỏi mẫu BIRD** (UC02h, thay bước 1): người dùng bấm **BIRD sample questions (158)**, tìm theo nội dung câu hỏi/evidence, lọc theo độ khó (*All / Simple / Moderate / Challenging*), chọn một câu. Hệ thống điền câu hỏi và evidence của câu đó vào ô tri thức ngoài, hiện nhãn *BIRD sample #id · difficulty* (bấm *Clear* để bỏ); kèm nhãn *evidence attached*, hoặc *no evidence in BIRD* với 12 câu mà BIRD để trống evidence — khi đó ô tri thức ngoài để trống và prompt không có dòng `-- External Knowledge:`. Người dùng có thể sửa tự do trước khi hỏi; mã câu mẫu được ghi vào `query_log.sample_id`. 146/158 câu có evidence.
 - **A6 — Hỏi lại**: nút **Ask again** trên thẻ kết quả, hoặc hỏi lại từ **Question history**, gửi lại cả tri thức ngoài đã dùng.
 - **A2 — Kết quả quá 1000 dòng** (bước 10): chỉ trả 1000 dòng đầu, có cờ `truncated`.
 - **A3 — Diễn giải không dùng được model** (bước 8): model lỗi hoặc trả rỗng → câu trả lời dựng theo mẫu từ kết quả, ví dụ "Result: 9.", "2 results: Law, Business.", "No matching data was found.".
@@ -139,6 +139,8 @@ Tri thức ngoài chính là *evidence* của BIRD: trong bài báo, mỗi câu 
 5. Hệ thống xoá điểm danh cũ của sự kiện, ghi danh sách mới, ghi `audit_log` rồi commit trong một giao dịch.
 6. Hệ thống báo số người tham dự.
 
+**Hướng dẫn trên giao diện:** với sự kiện `Planning`, hộp chi tiết nhắc người có quyền `event.write`: "click **Open event** below, tick the members who came, then **Save attendance**".
+
 **Ngoại lệ:** sự kiện `Planning` hoặc `Closed` → 409 "Attendance can only be recorded while the event is Open."; danh sách có thành viên không tồn tại → 422; vai trò Thủ quỹ/Quản trị → 403.
 
 ### UC07 — Quản lý thành viên
@@ -197,7 +199,7 @@ Tri thức ngoài chính là *evidence* của BIRD: trong bài báo, mỗi câu 
 | UC04 Đánh giá | Bấm **Correct** (1) hoặc **Wrong** (−1), có thể kèm nhận xét; đánh giá lại thì ghi đè | Câu hỏi của người khác → 404 |
 | UC05 Xuất CSV | Chạy lại SQL đã lưu **với quyền hiện tại** của người dùng, tải file CSV (UTF-8 BOM) | Câu không thành công/của người khác → 404; quyền đã bị thu hồi → 409 |
 | UC08 Quản lý sự kiện | Thêm (luôn ở `Planning`), sửa, đổi trạng thái theo một chiều, xoá | Đi lùi trạng thái → 422 (BR11); xoá sự kiện đã có điểm danh/ngân sách → 409 |
-| UC10 Ngân sách | Lập ngân sách cho (sự kiện, hạng mục); sửa số tiền; xoá | Sự kiện đã `Closed` → 409; trùng hạng mục → 409; số tiền < đã chi → 422; đã có khoản chi → 409 |
+| UC10 Ngân sách | Lập ngân sách cho (sự kiện, hạng mục) ở **Finance → Budgets → Create budget**, hoặc nút **Add budget** trong hộp chi tiết sự kiện (Thủ quỹ; form chọn sẵn sự kiện); sửa số tiền; xoá. Chủ nhiệm thấy dòng nhắc "Budgets are created by the Treasurer" | Sự kiện đã `Closed` → 409; trùng hạng mục → 409; số tiền < đã chi → 422; đã có khoản chi → 409 |
 | UC13 Khoản thu | Ghi, sửa, xoá khoản thu (ngày, số tiền, nguồn, người nộp) | Nguồn không hợp lệ → 422 |
 | UC14 Tổng quan | Số thành viên hoạt động/nghỉ/ban điều hành, sự kiện theo trạng thái và loại, sự kiện sắp tới, tham dự trung bình, top tham dự; tài chính (tổng ngân sách, đã chi, còn lại, thu, chờ duyệt, chi theo hạng mục, thu theo nguồn, thu chi theo tháng) nếu có `finance.read` | — |
 | UC15 Báo cáo | Tỉ lệ tham dự từng thành viên (trên số sự kiện không còn `Planning`), số người từng sự kiện; tài chính theo sự kiện và thu theo nguồn | Báo cáo tài chính khi thiếu `finance.read` → 403 |

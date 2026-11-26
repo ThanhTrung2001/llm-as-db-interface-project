@@ -85,6 +85,7 @@ def test_gpt35_matches_openai_request(monkeypatch, conn):
     r = client.post('/api/ask', json={'model_id': model_id('GPT-3.5-Turbo'), 'dev_question_id': 1379}).json()
     sql_prompt, sql_kw = llm_fake.calls[0]
     assert sql_prompt == openai_request.generate_combined_prompts_one(config.SOURCE_DB, q['question'], q['evidence'])
+    sql_kw.pop('trace', None)  # dict ghi số liệu cho giao diện, không gửi cho model
     assert sql_kw == {'max_tokens': 256, 'stop': ['--', '\n\n', ';', '#']}
     assert r['sql'] == "SELECT COUNT(*) FROM event WHERE type = 'Meeting'"  # openai_request.extract_sql
     assert r['status'] == 'EXECUTED'
@@ -145,3 +146,4 @@ def test_ask_requires_question():
 def test_dev_questions_loaded_from_dev_json():
     qs = client.get('/api/dev-questions').json()
     assert len(qs) == 158 and qs[0]['id'] == 1312 and qs[-1]['id'] == 1469
+

@@ -25,7 +25,7 @@
       </ul>
     </div>
     <form id="login-form" class="login-card" novalidate>
-      <h2>Log in</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center"><h2>Log in</h2><button type="button" class="btn lang-btn" data-lang-toggle title="Switch language" aria-label="Switch language"></button></div>
       <p class="muted">Use the account your administrator gave you.</p>
       <div class="field"><label for="lg-user">Username</label><input id="lg-user" name="username" autocomplete="username" required></div>
       <div class="field"><label for="lg-pass">Password</label><input id="lg-pass" name="password" type="password" autocomplete="current-password" required></div>
@@ -50,6 +50,7 @@
       <div class="side-user">
         <div class="who"><span id="me-avatar" class="avatar"></span><div><b id="me-name"></b><small id="me-role"></small></div></div>
         <div class="side-actions">
+          <button class="icon-btn lang-btn" data-lang-toggle title="Switch language" aria-label="Switch language"></button>
           <button class="icon-btn" id="btn-theme" title="Toggle light/dark theme" aria-label="Toggle light/dark theme"></button>
           <button class="icon-btn" id="btn-password" title="Change password" aria-label="Change password"></button>
           <button class="icon-btn" id="btn-logout" title="Log out" aria-label="Log out"></button>

@@ -1,4 +1,5 @@
 // ClubQuery — khung ứng dụng: đăng nhập, menu theo quyền, điều hướng theo #hash
+import { getLang, setLang } from './i18n/index.js';  // phải đứng đầu để dịch ngay từ lúc tải
 import { $, $$, api, can, esc, fmt, formModal, icon, setUnauthorizedHandler, state, toast, loading } from './core.js';
 import dashboard from './views/dashboard.js';
 import ask from './views/ask.js';
@@ -130,6 +131,12 @@ $('#btn-theme').addEventListener('click', () => {
   paintTheme();
 });
 paintTheme();
+// Nút đổi ngôn ngữ EN <-> VI (cả màn đăng nhập và thanh bên)
+$$('[data-lang-toggle]').forEach((b) => {
+  b.textContent = getLang() === 'vi' ? 'EN' : 'VI';
+  b.setAttribute('data-no-i18n', '');
+  b.addEventListener('click', () => setLang(getLang() === 'vi' ? 'en' : 'vi'));
+});
 $('#btn-password').innerHTML = icon('key');
 $('#btn-logout').innerHTML = icon('logout');
 $('#btn-menu').innerHTML = icon('menu');

@@ -36,7 +36,7 @@ export async function api(path, opts = {}) {
 // ---------- Định dạng ----------
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const fmt = {
-  date(v) { if (!v) return '—'; const [y, m, d] = String(v).slice(0, 10).split('-'); return d && MONTHS[+m - 1] ? `${d} ${MONTHS[+m - 1]} ${y}` : esc(v); },  // 07 Apr 2020
+  date(v) { if (!v) return '—'; if (document.documentElement.lang === 'vi') { const [y, m, d] = String(v).slice(0, 10).split('-'); if (d) return `${d}/${m}/${y}`; } const [y, m, d] = String(v).slice(0, 10).split('-'); return d && MONTHS[+m - 1] ? `${d} ${MONTHS[+m - 1]} ${y}` : esc(v); },  // 07 Apr 2020
   datetime(v) { if (!v) return '—'; const t = String(v).slice(11, 16); return fmt.date(v) + (t ? ' ' + t : ''); },
   money(v) { if (v == null || v === '') return '—'; const n = Number(v); return (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }); },
   num(v) { return v == null ? '—' : Number(v).toLocaleString('en-US'); },

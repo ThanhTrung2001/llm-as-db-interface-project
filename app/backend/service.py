@@ -100,9 +100,9 @@ def ask(conn, question: str, model_id: int, dev_question_id: Optional[int] = Non
     out = {'question': question, 'model_id': model_id, 'evidence_used': evidence, 'gold_sql': gold_sql,
            'prompt': None, 'llm_output': None, 'sql': None, 'status': None, 'error': None,
            'columns': [], 'rows': [], 'row_count': None, 'truncated': False,
-           'answer': None, 'answer_source': None, 'is_correct': None}
+           'answer': None, 'is_correct': None}
     try:
-        out['prompt'] = prompt.build_prompt(question, evidence, model['provider'])                        # 3
+        out['prompt'] = prompt.build_prompt(question, evidence)                                           # 3
         try:
             out['llm_output'] = llm.call_llm_for_sql(model, out['prompt'])                                # 4
         except llm.LLMError as e:
@@ -118,7 +118,7 @@ def ask(conn, question: str, model_id: int, dev_question_id: Optional[int] = Non
         out['truncated'] = len(rows) > config.MAX_ROWS
         out['rows'] = [list(r) for r in rows[:config.MAX_ROWS]]
 
-        out['answer'], out['answer_source'] = answer.make_answer(question, columns, rows, model)          # 7
+        out['answer'] = answer.make_answer(model, question, columns, rows)                                # 7
         if gold_sql:
             out['is_correct'] = compare_with_gold(rows, gold_sql)                                         # 8
     except QueryFailed as e:

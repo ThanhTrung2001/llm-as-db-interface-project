@@ -1,4 +1,6 @@
 # LLM as a Database Interface — BIRD-SQL và ứng dụng ClubQuery
+## NHÓM 9 CẬP NHẬT LẠI DRIVE SAU KHI BÁO CÁO LẠI VÀO NGÀY 28/11/2026
+Link: https://drive.google.com/drive/u/1/folders/1G-47JGElskYDCi6jIc2_-dJ3dtCC24Q7
 
 Dự án gồm hai phần, cùng dựa trên bài báo **"Can LLM Already Serve as A Database Interface? A BIg Bench for Large-Scale Database Grounded Text-to-SQLs" (BIRD-SQL, NeurIPS 2023)** — https://arxiv.org/abs/2305.03111:
 

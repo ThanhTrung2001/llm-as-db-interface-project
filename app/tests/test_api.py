@@ -43,7 +43,7 @@ def test_free_text_question(monkeypatch):
     assert r['status'] == 'EXECUTED' and r['rows'][0][0] > 0
     assert r['sql'] == "SELECT COUNT(*) FROM event WHERE type = 'Meeting'"
     assert 'External Knowledge' not in r['prompt'] and 'CREATE TABLE "expense"' in r['prompt']
-    assert r['answer'] == 'Câu lạc bộ đã tổ chức 18 buổi họp.' and r['answer_source'] == 'llm'
+    assert r['answer'] == 'Câu lạc bộ đã tổ chức 18 buổi họp.'
     assert str(r['rows'][0][0]) in llm_fake.calls[1][0]  # prompt diễn giải chứa kết quả thật
     assert r['is_correct'] is None and r['gold_sql'] is None
 
@@ -77,16 +77,16 @@ def test_prompt_matches_benchmark_ollama(monkeypatch, conn):
     assert prompt.build_schema_part() == ollama_request.generate_schema_prompt(config.SOURCE_DB)
 
 
-def test_gpt35_matches_openai_request(monkeypatch, conn):
-    import openai_request
-    llm_fake = fake_llm("COUNT(*) FROM event WHERE type = 'Meeting'")  # model viết tiếp sau "SELECT "
+def test_gpt35_uses_same_prompt_as_chat_models(monkeypatch, conn):
+    import ollama_request
+    llm_fake = fake_llm("```sql\nSELECT COUNT(*) FROM event WHERE type = 'Meeting'\n```")
     monkeypatch.setattr(llm, 'call_llm', llm_fake)
     q = conn.execute('SELECT * FROM dev_question WHERE id = 1379').fetchone()
     r = client.post('/api/ask', json={'model_id': model_id('GPT-3.5-Turbo'), 'dev_question_id': 1379}).json()
     sql_prompt, sql_kw = llm_fake.calls[0]
-    assert sql_prompt == openai_request.generate_combined_prompts_one(config.SOURCE_DB, q['question'], q['evidence'])
+    assert sql_prompt == ollama_request.generate_combined_prompts_one(config.SOURCE_DB, q['question'], q['evidence'])
     assert sql_kw == {'max_tokens': 256, 'stop': ['--', '\n\n', ';', '#']}
-    assert r['sql'] == "SELECT COUNT(*) FROM event WHERE type = 'Meeting'"  # openai_request.extract_sql
+    assert r['sql'] == "SELECT COUNT(*) FROM event WHERE type = 'Meeting'"
     assert r['status'] == 'EXECUTED'
 
 
@@ -107,7 +107,7 @@ def test_extract_sql_matches_benchmark(raw):
     assert llm.extract_sql('openai', raw) == openai_request.extract_sql(raw)
 
 
-def test_answer_falls_back_to_template(monkeypatch):
+def test_answer_none_when_llm_fails(monkeypatch):
     calls = []
 
     def sql_then_fail(model, prompt_text, **kw):
@@ -118,8 +118,7 @@ def test_answer_falls_back_to_template(monkeypatch):
 
     monkeypatch.setattr(llm, 'call_llm', sql_then_fail)
     r = ask(question='How many meetings?')
-    assert r['status'] == 'EXECUTED' and r['answer_source'] == 'template'
-    assert r['answer'] == f"Kết quả: {r['rows'][0][0]}."
+    assert r['status'] == 'EXECUTED' and r['answer'] is None
 
 
 def test_llm_failure():

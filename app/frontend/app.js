@@ -94,8 +94,7 @@ function renderResult(r) {
     ${r.sql ? collapsible('SQL đã chạy', r.sql) : ''}
     ${r.gold_sql ? collapsible('SQL đáp án chuẩn (gold)', r.gold_sql) : ''}
     ${r.status === 'EXECUTED' ? `<h3>Dữ liệu${r.truncated ? ' (hiển thị 1000 dòng đầu)' : ''}</h3>${resultTable(r.columns, r.rows)}` : ''}
-    ${r.answer ? `<div class="answer"><div class="answer-label">Trả lời</div><p>${esc(r.answer)}</p>
-      <span class="small muted">${r.answer_source === 'llm' ? 'Model diễn giải từ kết quả truy vấn' : 'Tóm tắt tự động từ kết quả truy vấn'}</span></div>` : ''}
+    ${r.answer ? `<div class="answer"><div class="answer-label">Trả lời</div><p>${esc(r.answer)}</p></div>` : ''}
   </div>`;
 }
 

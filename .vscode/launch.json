@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ClubQuery: chạy server (debug)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["app.backend.main:app", "--port", "8000"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/venv/Scripts/python.exe",
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "ClubQuery: chạy test (debug)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["app/tests", "-q"],
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/venv/Scripts/python.exe",
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    }
+  ]
+}

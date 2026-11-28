@@ -13,7 +13,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS model_config (
     id          INTEGER PRIMARY KEY,
     name        TEXT NOT NULL UNIQUE,
-    provider    TEXT NOT NULL CHECK (provider IN ('openai', 'groq', 'openrouter', 'ollama')),
+    provider    TEXT NOT NULL CHECK (provider IN ('openai', 'groq', 'ollama')),
     model_tag   TEXT NOT NULL,           -- tên model gửi trong request, ví dụ qwen2.5-coder:7b
     base_url    TEXT,                    -- địa chỉ API tương thích OpenAI; NULL = api.openai.com
     api_key_env TEXT,                    -- tên biến môi trường (.env) chứa khoá API; NULL = không cần khoá
@@ -60,11 +60,6 @@ def init_db(reset: bool = False) -> None:
         os.remove(config.APP_DB)
 
     conn = connect()
-    old_tables = conn.execute("SELECT name FROM sqlite_master WHERE name IN ('user_account', 'benchmark_run')").fetchall()
-    if old_tables:  # app.sqlite của bản cũ (có tài khoản / benchmark) → xoá, tạo lại từ đầu
-        conn.close()
-        os.remove(config.APP_DB)
-        conn = connect()
     try:
         conn.executescript(SCHEMA)
         if conn.execute('SELECT COUNT(*) FROM model_config').fetchone()[0] == 0:

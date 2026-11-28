@@ -6,7 +6,7 @@ Dựng prompt Text-to-SQL đúng khuôn của BIRD (giống generate_combined_pr
            + build_question_part(question, evidence) ← "-- External Knowledge: <evidence>"  (nếu có)
                                                        "-- Using valid SQLite ... answer the following questions ..."
                                                        "-- <câu hỏi>"
-           + build_instruction_part(provider)       ← câu chặn cuối: yêu cầu model chỉ trả SQL
+           + CHAT_INSTRUCTION                        ← câu chặn cuối, dùng chung cho mọi model
 """
 import sqlite3
 from functools import lru_cache
@@ -14,10 +14,7 @@ from typing import Optional
 
 from . import config
 
-# Câu chặn cuối prompt, chép nguyên văn từ script benchmark:
-#  - openai  : openai_request.py → model viết tiếp ngay sau "SELECT "
-#  - còn lại : ollama_request.py / groq_request.py → model trả SQL trong khối ```sql
-OPENAI_INSTRUCTION = '\nGenerate the SQL after thinking step by step: ' + '\nSELECT '
+# Câu chặn cuối prompt, chép nguyên văn từ ollama_request.py / groq_request.py
 CHAT_INSTRUCTION = '\nRespond with the final SQLite query only, inside a ```sql code block. Do not add any explanation.'
 
 
@@ -43,11 +40,6 @@ def build_question_part(question: str, evidence: Optional[str] = None) -> str:
             f'for the tables provided above.\n-- {question}')
 
 
-def build_instruction_part(provider: str) -> str:
-    """Câu chặn cuối prompt, tuỳ provider (đúng như lúc benchmark)."""
-    return OPENAI_INSTRUCTION if provider == 'openai' else CHAT_INSTRUCTION
-
-
-def build_prompt(question: str, evidence: Optional[str], provider: str = 'ollama') -> str:
+def build_prompt(question: str, evidence: Optional[str]) -> str:
     """Ghép prompt hoàn chỉnh: schema + "\\n\\n" + câu hỏi + câu chặn."""
-    return build_schema_part() + '\n\n' + build_question_part(question, evidence) + build_instruction_part(provider)
+    return build_schema_part() + '\n\n' + build_question_part(question, evidence) + CHAT_INSTRUCTION
